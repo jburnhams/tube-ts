@@ -1,5 +1,5 @@
 {
-  "name": "my-library",
+  "name": "tube-ts",
   "version": "0.1.0",
   "description": "A description of your library",
   "repository": {
@@ -46,6 +46,8 @@
     "build:cjs": "tsc -p tsconfig.cjs.json",
     "build:bundles": "node scripts/build-bundles.mjs",
     "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:bundles",
+    "patch:shaka": "node scripts/patchShaka.mjs",
+    "postinstall": "npm run patch:shaka",
     "build:docs": "npm run build -w docs",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
@@ -67,6 +69,12 @@
   "workspaces": [
     "docs"
   ],
+  "dependencies": {
+    "bgutils-js": "^3.2.0",
+    "googlevideo": "^4.0.4",
+    "shaka-player": "^4.16.2",
+    "youtubei.js": "^16.0.0"
+  },
   "devDependencies": {
     "@types/node": "^24.10.4",
     "@vitest/coverage-v8": "^4.0.16",

@@ -1,14 +1,14 @@
 {
   "compilerOptions": {
-    "target": "ES2022",
-    "module": "NodeNext",
-    "lib": ["ES2022", "DOM"],
+    "target": "ESNext",
+    "module": "ESNext",
+    "lib": ["ESNext", "DOM"],
     "types": ["node"],
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
-    "moduleResolution": "nodenext",
+    "moduleResolution": "bundler",
     "resolveJsonModule": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
