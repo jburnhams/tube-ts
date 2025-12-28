@@ -1,0 +1,80 @@
+{
+  "name": "my-library",
+  "version": "0.1.0",
+  "description": "A description of your library",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/YOUR_REPO.git"
+  },
+  "main": "dist/cjs/index.cjs",
+  "module": "dist/esm/index.js",
+  "types": "dist/types/index.d.ts",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "browser": {
+        "default": "./dist/bundles/my-library.esm.js"
+      },
+      "import": "./dist/esm/index.js",
+      "require": "./dist/cjs/index.cjs",
+      "default": "./dist/esm/index.js"
+    },
+    "./bundle": {
+      "types": "./dist/types/index.d.ts",
+      "default": "./dist/bundles/my-library.esm.js"
+    },
+    "./browser": {
+      "default": "./dist/browser/my-library.min.js"
+    },
+    "./package.json": "./package.json"
+  },
+  "browser": "dist/browser/my-library.min.js",
+  "unpkg": "dist/browser/my-library.min.js",
+  "jsdelivr": "dist/browser/my-library.min.js",
+  "files": [
+    "dist/esm",
+    "dist/cjs",
+    "dist/bundles",
+    "dist/browser",
+    "dist/types",
+    "README.md"
+  ],
+  "scripts": {
+    "clean": "node scripts/clean.mjs",
+    "build:esm": "tsc -p tsconfig.esm.json",
+    "build:cjs": "tsc -p tsconfig.cjs.json",
+    "build:bundles": "node scripts/build-bundles.mjs",
+    "build": "npm run clean && npm run build:esm && npm run build:cjs && npm run build:bundles",
+    "build:docs": "npm run build -w docs",
+    "test": "vitest run",
+    "test:unit": "vitest run tests/unit",
+    "test:integration": "npm run build && vitest run tests/integration",
+    "test:all": "npm run test:unit && npm run test:integration",
+    "smoke:esm": "node scripts/smoke-esm.mjs",
+    "smoke:cjs": "node scripts/smoke-cjs.cjs",
+    "smoke": "npm run smoke:esm && npm run smoke:cjs",
+    "coverage": "vitest run tests/unit --coverage",
+    "size": "npm run build && node scripts/check-bundle-size.mjs",
+    "prepublishOnly": "npm run build"
+  },
+  "keywords": [
+    "library",
+    "template"
+  ],
+  "author": "",
+  "license": "MIT",
+  "workspaces": [
+    "docs"
+  ],
+  "devDependencies": {
+    "@types/node": "^24.10.4",
+    "@vitest/coverage-v8": "^4.0.16",
+    "happy-dom": "^20.0.11",
+    "typescript": "^5.9.3",
+    "vitest": "^4.0.16"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}
