@@ -4,15 +4,12 @@ import { TubePlayer } from 'tube-ts'
 function App() {
   const [videoId, setVideoId] = useState('dQw4w9WgXcQ')
   const [status, setStatus] = useState('Ready')
-  const [isPlaying, setIsPlaying] = useState(false)
   const playerRef = useRef<TubePlayer | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     if (containerRef.current && !playerRef.current) {
         // Initialize player when component mounts and container is ready
-        // We need to give the container an ID or pass the element
-        // The TubePlayer expects an ID in the constructor currently, let's fix that or use an ID
         containerRef.current.id = 'tube-player-container';
         try {
             const player = new TubePlayer('tube-player-container');
@@ -20,9 +17,11 @@ function App() {
                 playerRef.current = player;
                 setStatus('Player Initialized');
             }).catch(e => {
+                console.error(e);
                 setStatus(`Initialization failed: ${e.message}`);
             });
         } catch (e: any) {
+            console.error(e);
             setStatus(`Error creating player: ${e.message}`);
         }
     }
@@ -39,13 +38,12 @@ function App() {
     if (!playerRef.current) return;
 
     setStatus(`Loading ${videoId}...`);
-    setIsPlaying(true);
     try {
         await playerRef.current.loadVideo(videoId);
         setStatus('Playing');
     } catch (e: any) {
+        console.error(e);
         setStatus(`Error: ${e.message}`);
-        setIsPlaying(false);
     }
   }
 
@@ -86,7 +84,7 @@ function App() {
 
                 <div className="p-4 bg-gray-100 rounded-md text-left">
                     <p className="text-sm font-mono text-gray-800">
-                        Status: {status}
+                        Status: <span id="status-text">{status}</span>
                     </p>
                 </div>
             </div>

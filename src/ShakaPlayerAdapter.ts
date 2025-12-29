@@ -1,4 +1,4 @@
-import shaka from 'shaka-player/dist/shaka-player.ui.js';
+import shaka from 'shaka-player/dist/shaka-player.ui';
 
 import { FormatKeyUtils, type CacheManager, type RequestMetadataManager, isGoogleVideoURL } from 'googlevideo/utils';
 
@@ -70,7 +70,7 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
   ): shaka.extern.IAbortableOperation<shaka.extern.Response> {
     const headers = new Headers();
     asMap(request.headers).forEach((value, key) => {
-      headers.append(key as string, value);
+      headers.append(key as string, value as string);
     });
 
     const controller = new AbortController();
@@ -375,7 +375,7 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
   } {
     this.checkPlayerStatus();
 
-    const activeVariant = this.player.getVariantTracks().find((track: shaka.extern.Variant) =>
+    const activeVariant = this.player.getVariantTracks().find((track: any) =>
       FormatKeyUtils.getUniqueFormatId(activeFormat) === (activeFormat.width ? track.originalVideoId : track.originalAudioId)
     );
 

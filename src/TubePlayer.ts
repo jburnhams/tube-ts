@@ -1,6 +1,6 @@
-import shaka from 'shaka-player/dist/shaka-player.ui.js';
-import type { Types } from 'youtubei.js/web';
-import { Constants, Innertube, Platform, UniversalCache, Utils, YT } from 'youtubei.js/web';
+import shaka from 'shaka-player/dist/shaka-player.ui';
+import type { Types, YT } from 'youtubei.js/web';
+import { Constants, Innertube, Platform, UniversalCache, Utils, YT as YTUtils } from 'youtubei.js/web';
 import { SabrStreamingAdapter } from 'googlevideo/sabr-streaming-adapter';
 import { buildSabrFormat } from 'googlevideo/utils';
 import { ShakaPlayerAdapter } from './ShakaPlayerAdapter.js';
@@ -107,7 +107,7 @@ export class TubePlayer {
     return fetch(url, requestInit);
   }
 
-  async loadVideo(videoId: string) {
+  async loadVideo(videoId: string): Promise<YT.VideoInfo['basic_info']> {
     if (!this.innertube) {
       throw new Error('TubePlayer not initialized. Call initialize() first.');
     }
@@ -143,7 +143,7 @@ export class TubePlayer {
       });
 
       const cpn = Utils.generateRandomString(16);
-      const videoInfo = new YT.VideoInfo([ playerResponse ], this.innertube.actions, cpn);
+      const videoInfo = new YTUtils.VideoInfo([ playerResponse ], this.innertube.actions, cpn);
 
       if (videoInfo.playability_status?.status !== 'OK') {
         throw new Error(`Cannot play video: ${videoInfo.playability_status?.reason}`);
@@ -192,7 +192,7 @@ export class TubePlayer {
           }
         });
 
-        const parsedInfo = new YT.VideoInfo([ reloadedInfo ], this.innertube!.actions, cpn);
+        const parsedInfo = new YTUtils.VideoInfo([ reloadedInfo ], this.innertube!.actions, cpn);
         this.sabrAdapter!.setStreamingURL(await this.innertube!.session.player!.decipher(parsedInfo.streaming_data?.server_abr_streaming_url));
         this.sabrAdapter!.setUstreamerConfig(videoInfo.player_config?.media_common_config.media_ustreamer_request_config?.video_playback_ustreamer_config);
       });

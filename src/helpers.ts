@@ -1,4 +1,4 @@
-import shaka from 'shaka-player/dist/shaka-player.ui.js';
+import shaka from 'shaka-player/dist/shaka-player.ui';
 
 export function asMap<K, V>(object: Record<string, V>): Map<K, V> {
   const map = new Map<K, V>();
@@ -21,6 +21,8 @@ export function createRecoverableError(message: string, info?: Record<string, an
 export function headersToGenericObject(headers: Headers): Record<string, string> {
   const headersObj: Record<string, string> = {};
   headers.forEach((value, key) => {
+    // Since Edge incorrectly returns the header with a leading new line
+    // character ('\n'), we trim the header here.
     headersObj[key.trim()] = value;
   });
   return headersObj;
@@ -69,14 +71,15 @@ export function makeResponse(
   );
 }
 
+// Simplified fetchFunction that doesn't rely on the browser extension proxy
 export async function fetchFunction(input: string | Request | URL, init?: RequestInit): Promise<Response> {
-    const url = input instanceof URL ? input : new URL(typeof input === 'string' ? input : input.url);
-    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
-    const requestInit = { ...init, headers };
+  const url = input instanceof URL ? input : new URL(typeof input === 'string' ? input : input.url);
+  const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
+  const requestInit = { ...init, headers };
 
-    if (url.pathname.includes('v1/player')) {
-      url.searchParams.set('$fields', 'playerConfig,storyboards,captions,playabilityStatus,streamingData,responseContext.mainAppWebResponseContext.datasyncId,videoDetails.isLive,videoDetails.isLiveContent,videoDetails.title,videoDetails.author,videoDetails.thumbnail');
-    }
+  if (url.pathname.includes('v1/player')) {
+    url.searchParams.set('$fields', 'playerConfig,storyboards,captions,playabilityStatus,streamingData,responseContext.mainAppWebResponseContext.datasyncId,videoDetails.isLive,videoDetails.isLiveContent,videoDetails.title,videoDetails.author,videoDetails.thumbnail');
+  }
 
-    return fetch(url, requestInit);
+  return fetch(url, requestInit);
 }

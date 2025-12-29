@@ -18,8 +18,12 @@
     "strict": true,
     "noUnusedLocals": true,
     "noUnusedParameters": true,
-    "noFallthroughCasesInSwitch": true
+    "noFallthroughCasesInSwitch": true,
+
+    "paths": {
+      "tube-ts": ["../src/index.ts"]
+    }
   },
-  "include": ["src"],
+  "include": ["src", "../src/types"],
   "references": [{ "path": "./tsconfig.node.json" }]
 }
