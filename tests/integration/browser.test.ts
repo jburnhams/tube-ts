@@ -45,14 +45,32 @@ describe('Browser Bundle Tests', () => {
         navigator: { userAgent: 'Node', vendor: 'Node', platform: 'Linux' },
         document: {
              readyState: 'complete',
-             createElement: () => ({ style: {} }),
+             createElement: (tagName: string) => ({
+                 style: {},
+                 appendChild: () => {},
+                 canPlayType: () => 'maybe',
+                 load: () => {},
+                 pause: () => {},
+                 play: () => Promise.resolve(),
+                 addEventListener: () => {},
+                 removeEventListener: () => {},
+                 getAttribute: () => null,
+                 setAttribute: () => {},
+                 removeAttribute: () => {},
+                 tagName: tagName ? tagName.toUpperCase() : 'DIV'
+             }),
              head: { appendChild: () => {} },
              body: { appendChild: () => {} },
              getElementById: () => null,
-             getElementsByTagName: () => []
+             getElementsByTagName: () => [],
+             querySelectorAll: () => [],
+             addEventListener: () => {},
+             removeEventListener: () => {},
+             dispatchEvent: () => true
         },
         screen: { width: 1920, height: 1080 },
         EventTarget: EventTarget,
+        CustomEvent: class CustomEvent extends Event {},
         Element: class Element {},
         HTMLElement: class HTMLElement {},
         self: {}
