@@ -16,10 +16,15 @@ test.describe('TubeTS Player', () => {
     await expect(input).toHaveValue('dQw4w9WgXcQ');
   });
 
-  test('should initialize status to Ready', async ({ page }) => {
-    // Wait for the status to potentially update to "Player Initialized" if it happens quickly,
-    // or at least start with "Ready".
-    // Since initialization is async, it might change.
-    await expect(page.locator('#status-text')).toBeVisible();
+  test('should display load button and status', async ({ page }) => {
+    const loadButton = page.getByRole('button', { name: 'Load Video' });
+    const statusText = page.locator('#status-text');
+
+    await expect(loadButton).toBeVisible();
+    await expect(statusText).toBeVisible();
+
+    // Check that status text is not empty
+    const text = await statusText.innerText();
+    expect(text.length).toBeGreaterThan(0);
   });
 });
