@@ -7,8 +7,8 @@
     "declarationDir": "./dist/types",
     "declarationMap": true,
     "sourceMap": true,
-    "module": "NodeNext",
-    "moduleResolution": "nodenext"
+    "module": "ESNext",
+    "moduleResolution": "bundler"
   },
   "include": ["src/**/*.ts"],
   "exclude": ["src/**/*.test.ts"]

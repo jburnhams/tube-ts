@@ -6,8 +6,8 @@
     "declaration": false,
     "declarationMap": false,
     "sourceMap": true,
-    "module": "CommonJS",
-    "moduleResolution": "node",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
     "allowSyntheticDefaultImports": true,
     "esModuleInterop": true
   },
