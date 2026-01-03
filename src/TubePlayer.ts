@@ -13,11 +13,11 @@ Platform.shim.eval = async (data: Types.BuildScriptResult, env: Record<string, T
   const properties = [];
 
   if (env.n) {
-    properties.push(`n: exportedVars.nFunction("${String(env.n).replace(/"/g, '\\"')}")`);
+    properties.push(`n: exportedVars.nFunction(${JSON.stringify(String(env.n))})`);
   }
 
   if (env.sig) {
-    properties.push(`sig: exportedVars.sigFunction("${String(env.sig).replace(/"/g, '\\"')}")`);
+    properties.push(`sig: exportedVars.sigFunction(${JSON.stringify(String(env.sig))})`);
   }
 
   const code = `${data.output}\nreturn { ${properties.join(', ')} }`;
