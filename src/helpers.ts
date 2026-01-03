@@ -95,5 +95,28 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
     headers
   };
 
-  return fetch(proxyUrl, requestInit);
+  const response = await fetch(proxyUrl, requestInit);
+
+  // If the response is not OK, or if it looks like an HTML error page when we expect something else,
+  // we should check it. However, the proxy might return 200 even for errors?
+  // But usually, if the proxy fails to reach the target, it might return a 500 or 502.
+
+  // youtubei.js expects to be able to read the response.
+  // If we get an HTML error page, we should throw an error so it doesn't try to parse it as JSON/JS.
+
+  const contentType = response.headers.get('content-type');
+  if (contentType && contentType.includes('text/html')) {
+     // Check if we were expecting HTML. YouTube player script is JS. JSON API is JSON.
+     // If we are fetching the player script, we expect JS.
+     // If we are fetching the API, we expect JSON.
+
+     // The proxy might return HTML for 502/403/etc.
+     if (!response.ok || response.status >= 400) {
+        // It's an error page.
+        const text = await response.text();
+        throw new Error(`Proxy returned HTML error: ${response.status} ${response.statusText} - ${text.substring(0, 100)}`);
+     }
+  }
+
+  return response;
 }

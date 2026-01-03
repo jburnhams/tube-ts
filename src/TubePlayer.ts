@@ -13,16 +13,23 @@ Platform.shim.eval = async (data: Types.BuildScriptResult, env: Record<string, T
   const properties = [];
 
   if (env.n) {
-    properties.push(`n: exportedVars.nFunction("${env.n}")`);
+    properties.push(`n: exportedVars.nFunction("${String(env.n).replace(/"/g, '\\"')}")`);
   }
 
   if (env.sig) {
-    properties.push(`sig: exportedVars.sigFunction("${env.sig}")`);
+    properties.push(`sig: exportedVars.sigFunction("${String(env.sig).replace(/"/g, '\\"')}")`);
   }
 
   const code = `${data.output}\nreturn { ${properties.join(', ')} }`;
 
-  return new Function(code)();
+  try {
+    return new Function(code)();
+  } catch (e: any) {
+    console.error('[TubePlayer] Shim evaluation failed:', e);
+    // Log first few lines of code for debugging
+    console.error('[TubePlayer] Code preview:', code.substring(0, 200));
+    throw e;
+  }
 };
 
 export class TubePlayer {
