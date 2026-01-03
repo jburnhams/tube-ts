@@ -59,7 +59,7 @@ export class TubePlayer {
     shaka.polyfill.installAll();
 
     if (!shaka.Player.isBrowserSupported()) {
-       throw new Error('Shaka Player is not supported on this browser.');
+       console.warn('Shaka Player is not supported on this browser.');
     }
 
     this.player = new shaka.Player();
@@ -67,10 +67,42 @@ export class TubePlayer {
   }
 
   async initialize() {
-    this.innertube = await Innertube.create({
-      cache: new UniversalCache(true),
-      fetch: fetchFunction
-    });
+    let retryCount = 0;
+    const maxRetries = 3;
+
+    while (retryCount < maxRetries) {
+      try {
+        const fetchWrapper = async (input: RequestInfo | URL, init?: RequestInit) => {
+          if (retryCount > 0) {
+            let url: URL;
+            if (typeof input === 'string') {
+              url = new URL(input);
+            } else if (input instanceof Request) {
+              url = new URL(input.url);
+            } else {
+              url = input;
+            }
+
+            if (url.toString().includes('player') || url.toString().includes('base.js')) {
+              url.searchParams.set('t', String(Date.now()));
+              return fetchFunction(url.toString(), init);
+            }
+          }
+          return fetchFunction(input, init);
+        };
+
+        this.innertube = await Innertube.create({
+          cache: new UniversalCache(retryCount === 0),
+          fetch: fetchWrapper
+        });
+        break;
+      } catch (error: any) {
+        console.error('Innertube init failed', error);
+        retryCount++;
+        if (retryCount >= maxRetries) throw error;
+        console.log(`Retrying Innertube init (attempt ${retryCount + 1})...`);
+      }
+    }
 
     await botguardService.init();
 
