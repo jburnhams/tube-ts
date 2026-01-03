@@ -85,26 +85,7 @@ export class TubePlayer {
 
             if (url.toString().includes('player') || url.toString().includes('base.js')) {
               url.searchParams.set('t', String(Date.now()));
-              const response = await fetchFunction(url.toString(), init);
-
-              // Workaround for truncated player script from proxy
-              const text = await response.text();
-              const TRUNCATED_SUFFIX = 'hm=function(S,W,m){m=m===void 0?0';
-              if (text.trim().endsWith(TRUNCATED_SUFFIX)) {
-                // Remove the truncated line and close the IIFE
-                const patchedText = text.substring(0, text.lastIndexOf(TRUNCATED_SUFFIX)) + '})();';
-                return new Response(patchedText, {
-                  status: response.status,
-                  statusText: response.statusText,
-                  headers: response.headers
-                });
-              }
-
-              return new Response(text, {
-                status: response.status,
-                statusText: response.statusText,
-                headers: response.headers
-              });
+              return fetchFunction(url.toString(), init);
             }
           }
           return fetchFunction(input, init);
