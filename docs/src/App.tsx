@@ -3,9 +3,14 @@ import { TubePlayer } from 'tube-ts'
 
 function App() {
   const [videoId, setVideoId] = useState('dQw4w9WgXcQ')
+  const [sessionId, setSessionId] = useState(() => localStorage.getItem('tube-ts-session-id') || '')
   const [status, setStatus] = useState('Ready')
   const playerRef = useRef<TubePlayer | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    localStorage.setItem('tube-ts-session-id', sessionId);
+  }, [sessionId]);
 
   useEffect(() => {
     if (containerRef.current && !playerRef.current) {
@@ -71,6 +76,20 @@ function App() {
                         onChange={(e) => setVideoId(e.target.value)}
                         className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
                         placeholder="Enter Video ID"
+                    />
+                </div>
+
+                <div>
+                    <label htmlFor="sessionId" className="block text-sm font-medium text-gray-700 text-left mb-1">
+                        Session ID
+                    </label>
+                    <input
+                        id="sessionId"
+                        type="text"
+                        value={sessionId}
+                        onChange={(e) => setSessionId(e.target.value)}
+                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                        placeholder="Enter Session ID"
                     />
                 </div>
 

@@ -83,6 +83,17 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
   const proxyUrl = new URL(url.pathname + url.search, 'https://vps.jonathanburnhams.com/');
   proxyUrl.searchParams.set('__host', url.host);
 
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      const sessionId = window.localStorage.getItem('tube-ts-session-id');
+      if (sessionId) {
+        proxyUrl.searchParams.set('session', sessionId);
+      }
+    }
+  } catch {
+    // Ignore errors when accessing localStorage (e.g. security restrictions)
+  }
+
   const headersObj: Record<string, string> = {};
   headers.forEach((value, key) => {
     headersObj[key] = value;
