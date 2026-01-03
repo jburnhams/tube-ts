@@ -5,6 +5,7 @@ import { SabrStreamingAdapter } from 'googlevideo/sabr-streaming-adapter';
 import { buildSabrFormat } from 'googlevideo/utils';
 import { ShakaPlayerAdapter } from './ShakaPlayerAdapter.js';
 import { botguardService } from './BotguardService.js';
+import { fetchFunction } from './helpers.js';
 import 'shaka-player/dist/controls.css';
 
 // Shim for youtubei.js
@@ -61,7 +62,7 @@ export class TubePlayer {
   async initialize() {
     this.innertube = await Innertube.create({
       cache: new UniversalCache(true),
-      fetch: this.fetchFunction.bind(this) // Use our custom fetch wrapper
+      fetch: fetchFunction
     });
 
     await botguardService.init();
@@ -92,19 +93,6 @@ export class TubePlayer {
       ],
       customContextMenu: true
     });
-  }
-
-  private async fetchFunction(input: string | Request | URL, init?: RequestInit): Promise<Response> {
-    const url = input instanceof URL ? input : new URL(typeof input === 'string' ? input : input.url);
-    const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
-    const requestInit = { ...init, headers };
-
-    if (url.pathname.includes('v1/player')) {
-      url.searchParams.set('$fields', 'playerConfig,storyboards,captions,playabilityStatus,streamingData,responseContext.mainAppWebResponseContext.datasyncId,videoDetails.isLive,videoDetails.isLiveContent,videoDetails.title,videoDetails.author,videoDetails.thumbnail');
-    }
-
-    // Direct fetch since user handles proxy externally
-    return fetch(url, requestInit);
   }
 
   async loadVideo(videoId: string): Promise<YT.VideoInfo['basic_info']> {
