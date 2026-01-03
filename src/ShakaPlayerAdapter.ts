@@ -17,7 +17,8 @@ import {
   asMap,
   createRecoverableError,
   headersToGenericObject,
-  makeResponse
+  makeResponse,
+  fetchFunction
 } from './helpers.js';
 
 interface ShakaResponseArgs {
@@ -299,7 +300,7 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
       }
 
       // We use standard fetch now
-      const fetchFn = fetch;
+      const fetchFn = fetchFunction;
 
       const response = await fetchFn(uri, init);
       headersReceived(headersToGenericObject(response.headers));

@@ -71,15 +71,29 @@ export function makeResponse(
   );
 }
 
-// Simplified fetchFunction that doesn't rely on the browser extension proxy
+// Proxied fetchFunction using https://vps.jonathanburnhams.com/
 export async function fetchFunction(input: string | Request | URL, init?: RequestInit): Promise<Response> {
   const url = input instanceof URL ? input : new URL(typeof input === 'string' ? input : input.url);
   const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
-  const requestInit = { ...init, headers };
 
   if (url.pathname.includes('v1/player')) {
     url.searchParams.set('$fields', 'playerConfig,storyboards,captions,playabilityStatus,streamingData,responseContext.mainAppWebResponseContext.datasyncId,videoDetails.isLive,videoDetails.isLiveContent,videoDetails.title,videoDetails.author,videoDetails.thumbnail');
   }
 
-  return fetch(url, requestInit);
+  const proxyUrl = new URL(url.pathname + url.search, 'https://vps.jonathanburnhams.com/');
+  proxyUrl.searchParams.set('__host', url.host);
+
+  const headersObj: Record<string, string> = {};
+  headers.forEach((value, key) => {
+    headersObj[key] = value;
+  });
+
+  proxyUrl.searchParams.set('__headers', JSON.stringify(headersObj));
+
+  const requestInit = {
+    ...init,
+    headers
+  };
+
+  return fetch(proxyUrl, requestInit);
 }

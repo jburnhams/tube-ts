@@ -33,7 +33,7 @@ export class BotguardService {
   }
 
   private async _initBotguard() {
-    const challengeResponse = await fetch(buildURL('Create', true), {
+    const challengeResponse = await fetchFunction(buildURL('Create', true), {
       method: 'POST',
       headers: {
         'content-type': 'application/json+protobuf',
