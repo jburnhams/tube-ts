@@ -84,10 +84,18 @@ export class TubePlayer {
     this.ui = new shaka.ui.Overlay(this.player, this.container, this.videoElement);
   }
 
-  async initialize(options?: { useProxy?: boolean }) {
+  // Store initialization options for potential re-init
+  private initOptions?: { useProxy?: boolean; cache?: boolean };
+
+  async initialize(options?: { useProxy?: boolean; cache?: boolean }) {
+    this.initOptions = options;
     let retryCount = 0;
     const maxRetries = 3;
     const useProxy = options?.useProxy ?? true;
+    // Default to strict caching unless explicitly disabled seems safest,
+    // but the original logic was `retryCount === 0` (so true on first attempt).
+    // Let's explicitly support a `cache` override.
+    const enableCache = options?.cache ?? true;
 
     while (retryCount < maxRetries) {
       try {
@@ -127,7 +135,10 @@ export class TubePlayer {
         };
 
         this.innertube = await Innertube.create({
-          cache: new UniversalCache(retryCount === 0),
+          // Create cache: persistent if enabled AND first try. 
+          // If we are retrying internally here (retryCount > 0), we disable it.
+          // If enableCache is passed as false (from loadVideo retry), we disable it.
+          cache: new UniversalCache(enableCache && retryCount === 0),
           fetch: fetchWrapper
         });
         break;
@@ -181,65 +192,20 @@ export class TubePlayer {
     this.playbackWebPoToken = undefined;
     this.playbackWebPoTokenContentBinding = videoId;
 
-    try {
-      // Unload previous video.
-      await this.player.unload();
+    let retryCount = 0;
+    const maxRetries = 2; // Allow 2 retries (3 attempts total) for bad player scripts
 
-      if (this.sabrAdapter) {
-        this.sabrAdapter.dispose();
-      }
+    while (true) {
+      try {
+        // Unload previous video.
+        await this.player.unload();
 
-      // Now fetch video info from YouTube.
-      const playerResponse = await this.innertube.actions.execute('/player', {
-        videoId,
-        contentCheckOk: true,
-        racyCheckOk: true,
-        playbackContext: {
-          adPlaybackContext: {
-            pyv: true
-          },
-          contentPlaybackContext: {
-            signatureTimestamp: this.innertube.session.player?.signature_timestamp
-          }
-        }
-      });
-
-      const cpn = Utils.generateRandomString(16);
-      const videoInfo = new YTUtils.VideoInfo([playerResponse], this.innertube.actions, cpn);
-
-      if (videoInfo.playability_status?.status !== 'OK') {
-        throw new Error(`Cannot play video: ${videoInfo.playability_status?.reason}`);
-      }
-
-      const isLive = videoInfo.basic_info.is_live;
-      const isPostLiveDVR = !!videoInfo.basic_info.is_post_live_dvr ||
-        (videoInfo.basic_info.is_live_content && !!(videoInfo.streaming_data?.dash_manifest_url || videoInfo.streaming_data?.hls_manifest_url));
-
-      // Initialize and attach SABR adapter.
-      this.sabrAdapter = new SabrStreamingAdapter({
-        playerAdapter: new ShakaPlayerAdapter(),
-        clientInfo: {
-          osName: this.innertube.session.context.client.osName,
-          osVersion: this.innertube.session.context.client.osVersion,
-          clientName: parseInt(Constants.CLIENT_NAME_IDS[this.innertube.session.context.client.clientName as keyof typeof Constants.CLIENT_NAME_IDS]),
-          clientVersion: this.innertube.session.context.client.clientVersion
-        }
-      });
-
-      this.sabrAdapter.onMintPoToken(async () => {
-        if (!this.playbackWebPoToken) {
-          if (isLive) {
-            await this.mintContentWebPO();
-          } else {
-            this.mintContentWebPO().then();
-          }
+        if (this.sabrAdapter) {
+          this.sabrAdapter.dispose();
         }
 
-        return this.playbackWebPoToken || this.coldStartToken || '';
-      });
-
-      this.sabrAdapter.onReloadPlayerResponse(async (reloadContext) => {
-        const reloadedInfo = await this.innertube!.actions.execute('/player', {
+        // Now fetch video info from YouTube.
+        const playerResponse = await this.innertube.actions.execute('/player', {
           videoId,
           contentCheckOk: true,
           racyCheckOk: true,
@@ -248,51 +214,116 @@ export class TubePlayer {
               pyv: true
             },
             contentPlaybackContext: {
-              signatureTimestamp: this.innertube!.session.player?.signature_timestamp
-            },
-            reloadPlaybackContext: reloadContext
+              signatureTimestamp: this.innertube.session.player?.signature_timestamp
+            }
           }
         });
 
-        const parsedInfo = new YTUtils.VideoInfo([reloadedInfo], this.innertube!.actions, cpn);
-        this.sabrAdapter!.setStreamingURL(await this.innertube!.session.player!.decipher(parsedInfo.streaming_data?.server_abr_streaming_url));
-        this.sabrAdapter!.setUstreamerConfig(videoInfo.player_config?.media_common_config.media_ustreamer_request_config?.video_playback_ustreamer_config);
-      });
+        const cpn = Utils.generateRandomString(16);
+        const videoInfo = new YTUtils.VideoInfo([playerResponse], this.innertube.actions, cpn);
 
-      this.sabrAdapter.attach(this.player);
-
-      if (videoInfo.streaming_data && !isPostLiveDVR && !isLive) {
-        this.sabrAdapter.setStreamingURL(await this.innertube.session.player!.decipher(videoInfo.streaming_data?.server_abr_streaming_url));
-        this.sabrAdapter.setUstreamerConfig(videoInfo.player_config?.media_common_config.media_ustreamer_request_config?.video_playback_ustreamer_config);
-        this.sabrAdapter.setServerAbrFormats(videoInfo.streaming_data.adaptive_formats.map(buildSabrFormat));
-      }
-
-      let manifestUri: string | undefined;
-      if (videoInfo.streaming_data) {
-        if (isLive) {
-          manifestUri = videoInfo.streaming_data.dash_manifest_url ? `${videoInfo.streaming_data.dash_manifest_url}/mpd_version/7` : videoInfo.streaming_data.hls_manifest_url;
-        } else if (isPostLiveDVR) {
-          manifestUri = videoInfo.streaming_data.hls_manifest_url || `${videoInfo.streaming_data.dash_manifest_url}/mpd_version/7`;
-        } else {
-          manifestUri = `data:application/dash+xml;base64,${btoa(await videoInfo.toDash({
-            manifest_options: {
-              is_sabr: true,
-              captions_format: 'vtt',
-              include_thumbnails: false
-            }
-          }))}`;
+        if (videoInfo.playability_status?.status !== 'OK') {
+          throw new Error(`Cannot play video: ${videoInfo.playability_status?.reason}`);
         }
+
+        const isLive = videoInfo.basic_info.is_live;
+        const isPostLiveDVR = !!videoInfo.basic_info.is_post_live_dvr ||
+          (videoInfo.basic_info.is_live_content && !!(videoInfo.streaming_data?.dash_manifest_url || videoInfo.streaming_data?.hls_manifest_url));
+
+        // Initialize and attach SABR adapter.
+        this.sabrAdapter = new SabrStreamingAdapter({
+          playerAdapter: new ShakaPlayerAdapter(),
+          clientInfo: {
+            osName: this.innertube.session.context.client.osName,
+            osVersion: this.innertube.session.context.client.osVersion,
+            clientName: parseInt(Constants.CLIENT_NAME_IDS[this.innertube.session.context.client.clientName as keyof typeof Constants.CLIENT_NAME_IDS]),
+            clientVersion: this.innertube.session.context.client.clientVersion
+          }
+        });
+
+        this.sabrAdapter.onMintPoToken(async () => {
+          if (!this.playbackWebPoToken) {
+            if (isLive) {
+              await this.mintContentWebPO();
+            } else {
+              this.mintContentWebPO().then();
+            }
+          }
+
+          return this.playbackWebPoToken || this.coldStartToken || '';
+        });
+
+        this.sabrAdapter.onReloadPlayerResponse(async (reloadContext) => {
+          const reloadedInfo = await this.innertube!.actions.execute('/player', {
+            videoId,
+            contentCheckOk: true,
+            racyCheckOk: true,
+            playbackContext: {
+              adPlaybackContext: {
+                pyv: true
+              },
+              contentPlaybackContext: {
+                signatureTimestamp: this.innertube!.session.player?.signature_timestamp
+              },
+              reloadPlaybackContext: reloadContext
+            }
+          });
+
+          const parsedInfo = new YTUtils.VideoInfo([reloadedInfo], this.innertube!.actions, cpn);
+          this.sabrAdapter!.setStreamingURL(await this.innertube!.session.player!.decipher(parsedInfo.streaming_data?.server_abr_streaming_url));
+          this.sabrAdapter!.setUstreamerConfig(videoInfo.player_config?.media_common_config.media_ustreamer_request_config?.video_playback_ustreamer_config);
+        });
+
+        this.sabrAdapter.attach(this.player);
+
+        if (videoInfo.streaming_data && !isPostLiveDVR && !isLive) {
+          // This call triggers decipher, which triggers shim.eval.
+          // If nFunction is missing, this will throw the "nFunction not exported" error.
+          this.sabrAdapter.setStreamingURL(await this.innertube.session.player!.decipher(videoInfo.streaming_data?.server_abr_streaming_url));
+          this.sabrAdapter.setUstreamerConfig(videoInfo.player_config?.media_common_config.media_ustreamer_request_config?.video_playback_ustreamer_config);
+          this.sabrAdapter.setServerAbrFormats(videoInfo.streaming_data.adaptive_formats.map(buildSabrFormat));
+        }
+
+        let manifestUri: string | undefined;
+        if (videoInfo.streaming_data) {
+          if (isLive) {
+            manifestUri = videoInfo.streaming_data.dash_manifest_url ? `${videoInfo.streaming_data.dash_manifest_url}/mpd_version/7` : videoInfo.streaming_data.hls_manifest_url;
+          } else if (isPostLiveDVR) {
+            manifestUri = videoInfo.streaming_data.hls_manifest_url || `${videoInfo.streaming_data.dash_manifest_url}/mpd_version/7`;
+          } else {
+            manifestUri = `data:application/dash+xml;base64,${btoa(await videoInfo.toDash({
+              manifest_options: {
+                is_sabr: true,
+                captions_format: 'vtt',
+                include_thumbnails: false
+              }
+            }))}`;
+          }
+        }
+
+        if (!manifestUri)
+          throw new Error('Could not find a valid manifest URI.');
+
+        await this.player.load(manifestUri);
+
+        return videoInfo.basic_info;
+
+      } catch (e: any) {
+        console.error('[TubePlayer]', 'Error loading video:', e);
+
+        // Detect "nFunction not exported" error or similar script issues
+        const errorMessage = String(e);
+        if (errorMessage.includes('nFunction') && retryCount < maxRetries) {
+          console.warn(`[TubePlayer] Detected bad player script (missing nFunction). Re-initializing TubePlayer (Attempt ${retryCount + 1}/${maxRetries})...`);
+
+          retryCount++;
+          // Force re-initialization with disabled cache to ensure we fetch a fresh script
+          await this.initialize({ ...this.initOptions, cache: false });
+          continue; // Retry loop
+        }
+
+        throw e;
       }
-
-      if (!manifestUri)
-        throw new Error('Could not find a valid manifest URI.');
-
-      await this.player.load(manifestUri);
-
-      return videoInfo.basic_info;
-    } catch (e: any) {
-      console.error('[TubePlayer]', 'Error:', e);
-      throw e;
     }
   }
 
