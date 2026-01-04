@@ -23,10 +23,8 @@ Platform.shim.eval = async (data: Types.BuildScriptResult, env: Record<string, T
     if (data.exported?.includes('nFunction')) {
       properties.push(`n: exportedVars.nFunction(${JSON.stringify(String(env.n))})`);
     } else {
-      console.warn('[TubePlayer] nFunction not exported, using identity fallback (n parameter will be untransformed). Available exports:', data.exported);
-      // Fallback: Use the original 'n' value. This effectively disables the transformation.
-      // This is better than crashing, though may lead to throttling.
-      properties.push(`n: ${JSON.stringify(String(env.n))}`);
+      console.warn('[TubePlayer] nFunction not exported. Available exports:', data.exported);
+      throw new Error(`[TubePlayer] nFunction not exported. Available: ${data.exported?.join(', ')}`);
     }
   }
 
@@ -108,6 +106,9 @@ export class TubePlayer {
           const urlObj = new URL(urlStr);
 
           if (urlStr.includes('player') || urlStr.includes('base.js')) {
+            // Log the player script URL to debug what we are actually fetching
+            console.log('[TubePlayer] Fetching player script from:', urlObj.toString());
+
             // Always add timestamp to prevent caching old/bad player scripts
             urlObj.searchParams.set('t', String(Date.now()));
 
@@ -192,20 +193,65 @@ export class TubePlayer {
     this.playbackWebPoToken = undefined;
     this.playbackWebPoTokenContentBinding = videoId;
 
-    let retryCount = 0;
-    const maxRetries = 2; // Allow 2 retries (3 attempts total) for bad player scripts
+    try {
+      // Unload previous video.
+      await this.player.unload();
 
-    while (true) {
-      try {
-        // Unload previous video.
-        await this.player.unload();
+      if (this.sabrAdapter) {
+        this.sabrAdapter.dispose();
+      }
 
-        if (this.sabrAdapter) {
-          this.sabrAdapter.dispose();
+      // Now fetch video info from YouTube.
+      const playerResponse = await this.innertube.actions.execute('/player', {
+        videoId,
+        contentCheckOk: true,
+        racyCheckOk: true,
+        playbackContext: {
+          adPlaybackContext: {
+            pyv: true
+          },
+          contentPlaybackContext: {
+            signatureTimestamp: this.innertube.session.player?.signature_timestamp
+          }
+        }
+      });
+
+      const cpn = Utils.generateRandomString(16);
+      const videoInfo = new YTUtils.VideoInfo([playerResponse], this.innertube.actions, cpn);
+
+      if (videoInfo.playability_status?.status !== 'OK') {
+        throw new Error(`Cannot play video: ${videoInfo.playability_status?.reason}`);
+      }
+
+      const isLive = videoInfo.basic_info.is_live;
+      const isPostLiveDVR = !!videoInfo.basic_info.is_post_live_dvr ||
+        (videoInfo.basic_info.is_live_content && !!(videoInfo.streaming_data?.dash_manifest_url || videoInfo.streaming_data?.hls_manifest_url));
+
+      // Initialize and attach SABR adapter.
+      this.sabrAdapter = new SabrStreamingAdapter({
+        playerAdapter: new ShakaPlayerAdapter(),
+        clientInfo: {
+          osName: this.innertube.session.context.client.osName,
+          osVersion: this.innertube.session.context.client.osVersion,
+          clientName: parseInt(Constants.CLIENT_NAME_IDS[this.innertube.session.context.client.clientName as keyof typeof Constants.CLIENT_NAME_IDS]),
+          clientVersion: this.innertube.session.context.client.clientVersion
+        }
+      });
+
+      this.sabrAdapter.onMintPoToken(async () => {
+        if (!this.playbackWebPoToken) {
+          if (isLive) {
+            await this.mintContentWebPO();
+          } else {
+            this.mintContentWebPO().then();
+          }
         }
 
-        // Now fetch video info from YouTube.
-        const playerResponse = await this.innertube.actions.execute('/player', {
+        return this.playbackWebPoToken || this.coldStartToken || '';
+      });
+
+      this.sabrAdapter.onReloadPlayerResponse(async (reloadContext) => {
+        const reloadedInfo = await this.innertube!.actions.execute('/player', {
           videoId,
           contentCheckOk: true,
           racyCheckOk: true,
@@ -214,118 +260,55 @@ export class TubePlayer {
               pyv: true
             },
             contentPlaybackContext: {
-              signatureTimestamp: this.innertube.session.player?.signature_timestamp
-            }
+              signatureTimestamp: this.innertube!.session.player?.signature_timestamp
+            },
+            reloadPlaybackContext: reloadContext
           }
         });
 
-        const cpn = Utils.generateRandomString(16);
-        const videoInfo = new YTUtils.VideoInfo([playerResponse], this.innertube.actions, cpn);
+        const parsedInfo = new YTUtils.VideoInfo([reloadedInfo], this.innertube!.actions, cpn);
+        this.sabrAdapter!.setStreamingURL(await this.innertube!.session.player!.decipher(parsedInfo.streaming_data?.server_abr_streaming_url));
+        this.sabrAdapter!.setUstreamerConfig(videoInfo.player_config?.media_common_config.media_ustreamer_request_config?.video_playback_ustreamer_config);
+      });
 
-        if (videoInfo.playability_status?.status !== 'OK') {
-          throw new Error(`Cannot play video: ${videoInfo.playability_status?.reason}`);
-        }
+      this.sabrAdapter.attach(this.player);
 
-        const isLive = videoInfo.basic_info.is_live;
-        const isPostLiveDVR = !!videoInfo.basic_info.is_post_live_dvr ||
-          (videoInfo.basic_info.is_live_content && !!(videoInfo.streaming_data?.dash_manifest_url || videoInfo.streaming_data?.hls_manifest_url));
-
-        // Initialize and attach SABR adapter.
-        this.sabrAdapter = new SabrStreamingAdapter({
-          playerAdapter: new ShakaPlayerAdapter(),
-          clientInfo: {
-            osName: this.innertube.session.context.client.osName,
-            osVersion: this.innertube.session.context.client.osVersion,
-            clientName: parseInt(Constants.CLIENT_NAME_IDS[this.innertube.session.context.client.clientName as keyof typeof Constants.CLIENT_NAME_IDS]),
-            clientVersion: this.innertube.session.context.client.clientVersion
-          }
-        });
-
-        this.sabrAdapter.onMintPoToken(async () => {
-          if (!this.playbackWebPoToken) {
-            if (isLive) {
-              await this.mintContentWebPO();
-            } else {
-              this.mintContentWebPO().then();
-            }
-          }
-
-          return this.playbackWebPoToken || this.coldStartToken || '';
-        });
-
-        this.sabrAdapter.onReloadPlayerResponse(async (reloadContext) => {
-          const reloadedInfo = await this.innertube!.actions.execute('/player', {
-            videoId,
-            contentCheckOk: true,
-            racyCheckOk: true,
-            playbackContext: {
-              adPlaybackContext: {
-                pyv: true
-              },
-              contentPlaybackContext: {
-                signatureTimestamp: this.innertube!.session.player?.signature_timestamp
-              },
-              reloadPlaybackContext: reloadContext
-            }
-          });
-
-          const parsedInfo = new YTUtils.VideoInfo([reloadedInfo], this.innertube!.actions, cpn);
-          this.sabrAdapter!.setStreamingURL(await this.innertube!.session.player!.decipher(parsedInfo.streaming_data?.server_abr_streaming_url));
-          this.sabrAdapter!.setUstreamerConfig(videoInfo.player_config?.media_common_config.media_ustreamer_request_config?.video_playback_ustreamer_config);
-        });
-
-        this.sabrAdapter.attach(this.player);
-
-        if (videoInfo.streaming_data && !isPostLiveDVR && !isLive) {
-          // This call triggers decipher, which triggers shim.eval.
-          // If nFunction is missing, this will throw the "nFunction not exported" error.
-          this.sabrAdapter.setStreamingURL(await this.innertube.session.player!.decipher(videoInfo.streaming_data?.server_abr_streaming_url));
-          this.sabrAdapter.setUstreamerConfig(videoInfo.player_config?.media_common_config.media_ustreamer_request_config?.video_playback_ustreamer_config);
-          this.sabrAdapter.setServerAbrFormats(videoInfo.streaming_data.adaptive_formats.map(buildSabrFormat));
-        }
-
-        let manifestUri: string | undefined;
-        if (videoInfo.streaming_data) {
-          if (isLive) {
-            manifestUri = videoInfo.streaming_data.dash_manifest_url ? `${videoInfo.streaming_data.dash_manifest_url}/mpd_version/7` : videoInfo.streaming_data.hls_manifest_url;
-          } else if (isPostLiveDVR) {
-            manifestUri = videoInfo.streaming_data.hls_manifest_url || `${videoInfo.streaming_data.dash_manifest_url}/mpd_version/7`;
-          } else {
-            manifestUri = `data:application/dash+xml;base64,${btoa(await videoInfo.toDash({
-              manifest_options: {
-                is_sabr: true,
-                captions_format: 'vtt',
-                include_thumbnails: false
-              }
-            }))}`;
-          }
-        }
-
-        if (!manifestUri)
-          throw new Error('Could not find a valid manifest URI.');
-
-        await this.player.load(manifestUri);
-
-        return videoInfo.basic_info;
-
-      } catch (e: any) {
-        console.error('[TubePlayer]', 'Error loading video:', e);
-
-        // Detect "nFunction not exported" error or similar script issues
-        const errorMessage = String(e);
-        if (errorMessage.includes('nFunction') && retryCount < maxRetries) {
-          console.warn(`[TubePlayer] Detected bad player script (missing nFunction). Re-initializing TubePlayer (Attempt ${retryCount + 1}/${maxRetries})...`);
-
-          retryCount++;
-          // Force re-initialization with disabled cache to ensure we fetch a fresh script
-          await this.initialize({ ...this.initOptions, cache: false });
-          continue; // Retry loop
-        }
-
-        throw e;
+      if (videoInfo.streaming_data && !isPostLiveDVR && !isLive) {
+        // This call triggers decipher, which triggers shim.eval.
+        // If nFunction is missing, this will throw the "nFunction not exported" error.
+        this.sabrAdapter.setStreamingURL(await this.innertube.session.player!.decipher(videoInfo.streaming_data?.server_abr_streaming_url));
+        this.sabrAdapter.setUstreamerConfig(videoInfo.player_config?.media_common_config.media_ustreamer_request_config?.video_playback_ustreamer_config);
+        this.sabrAdapter.setServerAbrFormats(videoInfo.streaming_data.adaptive_formats.map(buildSabrFormat));
       }
+
+      let manifestUri: string | undefined;
+      if (videoInfo.streaming_data) {
+        if (isLive) {
+          manifestUri = videoInfo.streaming_data.dash_manifest_url ? `${videoInfo.streaming_data.dash_manifest_url}/mpd_version/7` : videoInfo.streaming_data.hls_manifest_url;
+        } else if (isPostLiveDVR) {
+          manifestUri = videoInfo.streaming_data.hls_manifest_url || `${videoInfo.streaming_data.dash_manifest_url}/mpd_version/7`;
+        } else {
+          manifestUri = `data:application/dash+xml;base64,${btoa(await videoInfo.toDash({
+            manifest_options: {
+              is_sabr: true,
+              captions_format: 'vtt',
+              include_thumbnails: false
+            }
+          }))}`;
+        }
+      }
+
+      if (!manifestUri)
+        throw new Error('Could not find a valid manifest URI.');
+
+      await this.player.load(manifestUri);
+
+      return videoInfo.basic_info;
+
+    } catch (e: any) {
+      console.error('[TubePlayer]', 'Error loading video:', e);
+      throw e;
     }
-  }
 
   private async mintContentWebPO() {
     if (!this.playbackWebPoTokenContentBinding || this.playbackWebPoTokenCreationLock) return;
