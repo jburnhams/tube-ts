@@ -13,11 +13,19 @@ Platform.shim.eval = async (data: Types.BuildScriptResult, env: Record<string, T
   const properties = [];
 
   if (env.n) {
-    properties.push(`n: exportedVars.nFunction(${JSON.stringify(String(env.n))})`);
+    if (data.exported?.includes('nFunction')) {
+      properties.push(`n: exportedVars.nFunction(${JSON.stringify(String(env.n))})`);
+    } else {
+      console.warn('[TubePlayer] nFunction not exported, skipping n transformation');
+    }
   }
 
   if (env.sig) {
-    properties.push(`sig: exportedVars.sigFunction(${JSON.stringify(String(env.sig))})`);
+    if (data.exported?.includes('sigFunction')) {
+      properties.push(`sig: exportedVars.sigFunction(${JSON.stringify(String(env.sig))})`);
+    } else {
+      console.warn('[TubePlayer] sigFunction not exported, skipping sig transformation');
+    }
   }
 
   const code = `${data.output}\nreturn { ${properties.join(', ')} }`;
