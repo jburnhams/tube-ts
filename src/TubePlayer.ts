@@ -12,6 +12,13 @@ import 'shaka-player/dist/controls.css';
 Platform.shim.eval = async (data: Types.BuildScriptResult, env: Record<string, Types.VMPrimative>) => {
   const properties = [];
 
+  // Log code info for debugging
+  if (data.output && data.output.length < 1000) {
+      console.log('[TubePlayer] Short code received:', data.output);
+  } else {
+      console.log(`[TubePlayer] Code received, length: ${data.output?.length}`);
+  }
+
   if (env.n) {
     if (data.exported?.includes('nFunction')) {
       properties.push(`n: exportedVars.nFunction(${JSON.stringify(String(env.n))})`);

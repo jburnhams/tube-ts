@@ -80,15 +80,42 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
     url.searchParams.set('$fields', 'playerConfig,storyboards,captions,playabilityStatus,streamingData,responseContext.mainAppWebResponseContext.datasyncId,videoDetails.isLive,videoDetails.isLiveContent,videoDetails.title,videoDetails.author,videoDetails.thumbnail');
   }
 
+  // Allow skipping proxy via environment variable (useful for Node.js testing)
+  // Check process.env in a safe way for browsers
+  let skipProxy = false;
+  try {
+    if (typeof process !== 'undefined' && process.env && process.env.SKIP_PROXY === 'true') {
+      skipProxy = true;
+    }
+  } catch (e) {
+    // ignore
+  }
+
+  if (skipProxy) {
+      const requestInit = {
+        ...init,
+        headers
+      };
+      if (input instanceof Request && !requestInit.method) {
+        requestInit.method = input.method;
+      }
+      return fetch(url.toString(), requestInit);
+  }
+
   const proxyUrl = new URL(url.pathname + url.search, 'https://vps.jonathanburnhams.com/');
   proxyUrl.searchParams.set('__host', url.host);
 
   try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const sessionId = window.localStorage.getItem('tube-ts-session-id');
-      if (sessionId) {
-        proxyUrl.searchParams.set('session', sessionId);
-      }
+    // Prioritize session ID from environment variable if present (for testing)
+    let sessionId: string | null = null;
+    if (typeof process !== 'undefined' && process.env && process.env.PROXY_SESSION_ID) {
+      sessionId = process.env.PROXY_SESSION_ID;
+    } else if (typeof window !== 'undefined' && window.localStorage) {
+      sessionId = window.localStorage.getItem('tube-ts-session-id');
+    }
+
+    if (sessionId) {
+      proxyUrl.searchParams.set('session', sessionId);
     }
   } catch {
     // Ignore errors when accessing localStorage (e.g. security restrictions)
@@ -110,32 +137,16 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
     if (!requestInit.method) {
       requestInit.method = input.method;
     }
-    // If body is missing in init, we might want to copy it from input?
-    // However, consuming request body is tricky (stream).
-    // The main issue reported is that method is lost but body is present in init.
   }
 
   const response = await fetch(proxyUrl, requestInit);
 
-  // If the response is not OK, or if it looks like an HTML error page when we expect something else,
-  // we should check it. However, the proxy might return 200 even for errors?
-  // But usually, if the proxy fails to reach the target, it might return a 500 or 502.
-
-  // youtubei.js expects to be able to read the response.
-  // If we get an HTML error page, we should throw an error so it doesn't try to parse it as JSON/JS.
-
   const contentType = response.headers.get('content-type');
+  // youtubei.js requests return JSON (application/json) or JS (text/javascript).
+  // If we get HTML, it's almost certainly a proxy error page or captive portal, even if 200 OK.
   if (contentType && contentType.includes('text/html')) {
-     // Check if we were expecting HTML. YouTube player script is JS. JSON API is JSON.
-     // If we are fetching the player script, we expect JS.
-     // If we are fetching the API, we expect JSON.
-
-     // The proxy might return HTML for 502/403/etc.
-     if (!response.ok || response.status >= 400) {
-        // It's an error page.
-        const text = await response.text();
-        throw new Error(`Proxy returned HTML error: ${response.status} ${response.statusText} - ${text.substring(0, 100)}`);
-     }
+     const text = await response.text();
+     throw new Error(`Proxy returned HTML (likely error page): ${response.status} ${response.statusText} - ${text.substring(0, 100)}`);
   }
 
   return response;
