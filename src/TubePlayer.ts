@@ -14,9 +14,9 @@ Platform.shim.eval = async (data: Types.BuildScriptResult, env: Record<string, T
 
   // Log code info for debugging
   if (data.output && data.output.length < 1000) {
-      console.log('[TubePlayer] Short code received:', data.output);
+    console.log('[TubePlayer] Short code received:', data.output);
   } else {
-      console.log(`[TubePlayer] Code received, length: ${data.output?.length}`);
+    console.log(`[TubePlayer] Code received, length: ${data.output?.length}`);
   }
 
   if (env.n) {
@@ -97,15 +97,27 @@ export class TubePlayer {
           // Let's refactor to check URL regardless of retryCount for player scripts.
 
           let urlStr = typeof input === 'string' ? input : (input instanceof Request ? input.url : input.toString());
+          const urlObj = new URL(urlStr);
+
           if (urlStr.includes('player') || urlStr.includes('base.js')) {
-            const urlObj = new URL(urlStr);
             // Always add timestamp to prevent caching old/bad player scripts
             urlObj.searchParams.set('t', String(Date.now()));
 
+            // If input is a Request object, we might lose the method (e.g. POST) if we just pass the URL string.
+            // The init object (if present) contains the body, but might rely on the Request object for the method.
+            // If we convert Request -> URL string, we must ensure the method is preserved in init.
+            let modifiedInit = init;
+            if (input instanceof Request) {
+              modifiedInit = {
+                method: input.method,
+                ...init
+              };
+            }
+
             // If we are skipping proxy, we still want to apply the timestamp, 
             // but we use native fetch (or default behavior) instead of fetchFunction
-            if (!useProxy) return fetch(urlObj.toString(), init);
-            return fetchFunction(urlObj.toString(), init);
+            if (!useProxy) return fetch(urlObj.toString(), modifiedInit);
+            return fetchFunction(urlObj.toString(), modifiedInit);
           }
 
           if (!useProxy) {
