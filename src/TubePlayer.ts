@@ -23,10 +23,10 @@ Platform.shim.eval = async (data: Types.BuildScriptResult, env: Record<string, T
     if (data.exported?.includes('nFunction')) {
       properties.push(`n: exportedVars.nFunction(${JSON.stringify(String(env.n))})`);
     } else {
-      console.warn('[TubePlayer] nFunction not exported, skipping n transformation. Available exports:', data.exported);
-      // We must throw here to trigger the retry logic in initialize(), which adds a cache-busting timestamp.
-      // Otherwise we get a broken player that fails later at deciphering.
-      throw new Error(`[TubePlayer] nFunction not exported. Available: ${data.exported?.join(', ')}`);
+      console.warn('[TubePlayer] nFunction not exported, using identity fallback (n parameter will be untransformed). Available exports:', data.exported);
+      // Fallback: Use the original 'n' value. This effectively disables the transformation.
+      // This is better than crashing, though may lead to throttling.
+      properties.push(`n: ${JSON.stringify(String(env.n))}`);
     }
   }
 
