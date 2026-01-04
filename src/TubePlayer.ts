@@ -104,6 +104,8 @@ export class TubePlayer {
           if (urlStr.includes('player') || urlStr.includes('base.js')) {
             // Always add timestamp to prevent caching old/bad player scripts
             urlObj.searchParams.set('t', String(Date.now()));
+            // Log the player script URL to debug what we are actually fetching
+            console.log('[TubePlayer] Fetching player script from:', urlObj.toString());
 
             // If input is a Request object, we might lose the method (e.g. POST) if we just pass the URL string.
             // The init object (if present) contains the body, but might rely on the Request object for the method.
