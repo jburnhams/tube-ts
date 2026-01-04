@@ -3,7 +3,7 @@ import { Platform } from 'youtubei.js/web';
 import '../../src/TubePlayer';
 
 describe('Platform.shim.eval', () => {
-  test('should handle missing nFunction gracefully', async () => {
+  test('should throw on missing nFunction', async () => {
     const data = {
       output: `
         var exportedVars = {
@@ -14,10 +14,7 @@ describe('Platform.shim.eval', () => {
     };
     const env = { n: 'some-n-value' };
 
-    const result = await Platform.shim.eval(data, env);
-    // Should not throw, and result should not contain transformed n (or undefined n)
-    // Since we didn't add it to properties, result won't have 'n' property
-    expect(result.n).toBeUndefined();
+    await expect(Platform.shim.eval(data, env)).rejects.toThrow(/nFunction not exported/);
   });
 
   test('should handle missing sigFunction gracefully', async () => {
