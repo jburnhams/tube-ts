@@ -82,11 +82,7 @@ export class TubePlayer {
     this.ui = new shaka.ui.Overlay(this.player, this.container, this.videoElement);
   }
 
-  // Store initialization options for potential re-init
-  private initOptions?: { useProxy?: boolean; cache?: boolean };
-
   async initialize(options?: { useProxy?: boolean; cache?: boolean }) {
-    this.initOptions = options;
     let retryCount = 0;
     const maxRetries = 3;
     const useProxy = options?.useProxy ?? true;
