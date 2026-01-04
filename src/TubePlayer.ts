@@ -82,7 +82,11 @@ export class TubePlayer {
     this.ui = new shaka.ui.Overlay(this.player, this.container, this.videoElement);
   }
 
+  // Store initialization options for retry logic
+  private initOptions?: { useProxy?: boolean; cache?: boolean };
+
   async initialize(options?: { useProxy?: boolean; cache?: boolean }) {
+    this.initOptions = options;
     let retryCount = 0;
     const maxRetries = 3;
     const useProxy = options?.useProxy ?? true;
@@ -300,9 +304,28 @@ export class TubePlayer {
 
     } catch (e: any) {
       console.error('[TubePlayer]', 'Error loading video:', e);
+
+      // Retry mechanism for stale/poisoned cache (e.g. bad player script causing signatureTimestamp: 0)
+      if (!this.isRetrying && this.initOptions) {
+        console.warn('[TubePlayer] Load failed. Retrying with cache disabled to fetch fresh player script...');
+        this.isRetrying = true;
+        try {
+          // Re-initialize with cache disabled
+          await this.initialize({ ...this.initOptions, cache: false });
+          return this.loadVideo(videoId);
+        } catch (retryError) {
+          console.error('[TubePlayer] Retry failed:', retryError);
+        } finally {
+          this.isRetrying = false;
+        }
+      }
+
       throw e;
     }
   }
+
+  // Track retry state to prevent infinite loops
+  private isRetrying = false;
 
   private async mintContentWebPO() {
     if (!this.playbackWebPoTokenContentBinding || this.playbackWebPoTokenCreationLock) return;
