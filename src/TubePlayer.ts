@@ -306,6 +306,7 @@ export class TubePlayer {
       console.error('[TubePlayer]', 'Error loading video:', e);
       throw e;
     }
+  }
 
   private async mintContentWebPO() {
     if (!this.playbackWebPoTokenContentBinding || this.playbackWebPoTokenCreationLock) return;
