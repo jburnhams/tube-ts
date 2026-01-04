@@ -92,18 +92,39 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
   }
 
   if (skipProxy) {
-      const requestInit = {
-        ...init,
-        headers
-      };
-      if (input instanceof Request && !requestInit.method) {
-        requestInit.method = input.method;
-      }
-      return fetch(url.toString(), requestInit);
+    const requestInit = {
+      ...init,
+      headers
+    };
+    if (input instanceof Request && !requestInit.method) {
+      requestInit.method = input.method;
+    }
+    return fetch(url.toString(), requestInit);
   }
 
   const proxyUrl = new URL(url.pathname + url.search, 'https://vps.jonathanburnhams.com/');
-  proxyUrl.searchParams.set('__host', url.host);
+
+  // FIX: Force player scripts to target www.youtube.com
+  // When running on GitHub Pages (e.g. /tube-ts/), relative paths like /s/player/... 
+  // get resolved to https://jburnhams.github.io/tube-ts/s/player/...
+  // We need to strip the local prefix and force the host to youtube.
+  if (url.pathname.includes('/s/player/') || url.pathname.includes('/yts/jsbin/')) {
+    proxyUrl.searchParams.set('__host', 'www.youtube.com');
+
+    // Strip common deployment prefixes if present (simple heuristic: find where /s/player starts)
+    // or just ensure the path on proxy starts with /s/player
+    const scriptPathIndex = url.pathname.indexOf('/s/player/');
+    if (scriptPathIndex > -1) {
+      proxyUrl.pathname = url.pathname.substring(scriptPathIndex);
+    } else {
+      const jsbinIndex = url.pathname.indexOf('/yts/jsbin/');
+      if (jsbinIndex > -1) {
+        proxyUrl.pathname = url.pathname.substring(jsbinIndex);
+      }
+    }
+  } else {
+    proxyUrl.searchParams.set('__host', url.host);
+  }
 
   try {
     // Prioritize session ID from environment variable if present (for testing)
@@ -145,8 +166,8 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
   // youtubei.js requests return JSON (application/json) or JS (text/javascript).
   // If we get HTML, it's almost certainly a proxy error page or captive portal, even if 200 OK.
   if (contentType && contentType.includes('text/html')) {
-     const text = await response.text();
-     throw new Error(`Proxy returned HTML (likely error page): ${response.status} ${response.statusText} - ${text.substring(0, 100)}`);
+    const text = await response.text();
+    throw new Error(`Proxy returned HTML (likely error page): ${response.status} ${response.statusText} - ${text.substring(0, 100)}`);
   }
 
   return response;

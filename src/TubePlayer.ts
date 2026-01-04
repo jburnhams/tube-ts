@@ -106,9 +106,6 @@ export class TubePlayer {
           const urlObj = new URL(urlStr);
 
           if (urlStr.includes('player') || urlStr.includes('base.js')) {
-            // Log the player script URL to debug what we are actually fetching
-            console.log('[TubePlayer] Fetching player script from:', urlObj.toString());
-
             // Always add timestamp to prevent caching old/bad player scripts
             urlObj.searchParams.set('t', String(Date.now()));
 
