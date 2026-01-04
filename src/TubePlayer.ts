@@ -23,7 +23,10 @@ Platform.shim.eval = async (data: Types.BuildScriptResult, env: Record<string, T
     if (data.exported?.includes('nFunction')) {
       properties.push(`n: exportedVars.nFunction(${JSON.stringify(String(env.n))})`);
     } else {
-      console.warn('[TubePlayer] nFunction not exported, skipping n transformation');
+      console.warn('[TubePlayer] nFunction not exported, skipping n transformation. Available exports:', data.exported);
+      // We must throw here to trigger the retry logic in initialize(), which adds a cache-busting timestamp.
+      // Otherwise we get a broken player that fails later at deciphering.
+      throw new Error(`[TubePlayer] nFunction not exported. Available: ${data.exported?.join(', ')}`);
     }
   }
 
@@ -74,34 +77,39 @@ export class TubePlayer {
     shaka.polyfill.installAll();
 
     if (!shaka.Player.isBrowserSupported()) {
-       console.warn('Shaka Player is not supported on this browser.');
+      console.warn('Shaka Player is not supported on this browser.');
     }
 
     this.player = new shaka.Player();
     this.ui = new shaka.ui.Overlay(this.player, this.container, this.videoElement);
   }
 
-  async initialize() {
+  async initialize(options?: { useProxy?: boolean }) {
     let retryCount = 0;
     const maxRetries = 3;
+    const useProxy = options?.useProxy ?? true;
 
     while (retryCount < maxRetries) {
       try {
         const fetchWrapper = async (input: RequestInfo | URL, init?: RequestInit) => {
-          if (retryCount > 0) {
-            let url: URL;
-            if (typeof input === 'string') {
-              url = new URL(input);
-            } else if (input instanceof Request) {
-              url = new URL(input.url);
-            } else {
-              url = input;
-            }
+          // Even on first try, we might want to catch player/base.js and timestamp it?
+          // The current structure only enters this block if retryCount > 0.
+          // Let's refactor to check URL regardless of retryCount for player scripts.
 
-            if (url.toString().includes('player') || url.toString().includes('base.js')) {
-              url.searchParams.set('t', String(Date.now()));
-              return fetchFunction(url.toString(), init);
-            }
+          let urlStr = typeof input === 'string' ? input : (input instanceof Request ? input.url : input.toString());
+          if (urlStr.includes('player') || urlStr.includes('base.js')) {
+            const urlObj = new URL(urlStr);
+            // Always add timestamp to prevent caching old/bad player scripts
+            urlObj.searchParams.set('t', String(Date.now()));
+
+            // If we are skipping proxy, we still want to apply the timestamp, 
+            // but we use native fetch (or default behavior) instead of fetchFunction
+            if (!useProxy) return fetch(urlObj.toString(), init);
+            return fetchFunction(urlObj.toString(), init);
+          }
+
+          if (!useProxy) {
+            return fetch(input, init);
           }
           return fetchFunction(input, init);
         };
@@ -185,7 +193,7 @@ export class TubePlayer {
       });
 
       const cpn = Utils.generateRandomString(16);
-      const videoInfo = new YTUtils.VideoInfo([ playerResponse ], this.innertube.actions, cpn);
+      const videoInfo = new YTUtils.VideoInfo([playerResponse], this.innertube.actions, cpn);
 
       if (videoInfo.playability_status?.status !== 'OK') {
         throw new Error(`Cannot play video: ${videoInfo.playability_status?.reason}`);
@@ -234,7 +242,7 @@ export class TubePlayer {
           }
         });
 
-        const parsedInfo = new YTUtils.VideoInfo([ reloadedInfo ], this.innertube!.actions, cpn);
+        const parsedInfo = new YTUtils.VideoInfo([reloadedInfo], this.innertube!.actions, cpn);
         this.sabrAdapter!.setStreamingURL(await this.innertube!.session.player!.decipher(parsedInfo.streaming_data?.server_abr_streaming_url));
         this.sabrAdapter!.setUstreamerConfig(videoInfo.player_config?.media_common_config.media_ustreamer_request_config?.video_playback_ustreamer_config);
       });
