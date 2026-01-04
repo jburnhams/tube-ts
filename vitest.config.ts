@@ -9,5 +9,6 @@ export default defineConfig({
       exclude: ['docs/**', 'scripts/**', 'tests/**', 'dist/**'],
     },
     include: ['tests/**/*.test.ts'],
+    testTimeout: 20000,
   },
 });

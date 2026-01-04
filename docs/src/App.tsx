@@ -5,6 +5,8 @@ function App() {
   const [videoId, setVideoId] = useState('dQw4w9WgXcQ')
   const [sessionId, setSessionId] = useState(() => localStorage.getItem('tube-ts-session-id') || '')
   const [status, setStatus] = useState('Ready')
+  const [channelId, setChannelId] = useState('UC_x5XG1OV2P6uZZ5FSM9Ttw') // Default to Google Developers
+  const [channelInfo, setChannelInfo] = useState<{ title: string; count: number } | null>(null)
   const playerRef = useRef<TubePlayer | null>(null)
   const containerRef = useRef<HTMLDivElement>(null)
 
@@ -100,6 +102,53 @@ function App() {
                 >
                     Load Video
                 </button>
+
+                <div className="border-t border-gray-200 pt-6 mt-6">
+                    <label htmlFor="channelId" className="block text-sm font-medium text-gray-700 text-left mb-1">
+                        Channel ID
+                    </label>
+                    <input
+                        id="channelId"
+                        type="text"
+                        value={channelId}
+                        onChange={(e) => setChannelId(e.target.value)}
+                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border mb-3"
+                        placeholder="Enter Channel ID"
+                    />
+                    <button
+                        onClick={async () => {
+                            if (!playerRef.current) return;
+                            setStatus(`Fetching channel ${channelId}...`);
+                            try {
+                                const { videoInfo, channelMetadata } = await playerRef.current.playRandomChannelVideo(channelId);
+                                const currentVideo = channelMetadata.videos.find(v => v.id === videoInfo.id!);
+                                const durationText = currentVideo
+                                    ? `${Math.floor(currentVideo.duration / 60)}:${String(currentVideo.duration % 60).padStart(2, '0')}`
+                                    : 'Unknown';
+
+                                setVideoId(videoInfo.id!);
+                                setChannelInfo({
+                                    title: channelMetadata.title || 'Unknown Channel',
+                                    count: channelMetadata.videos.length
+                                });
+                                setStatus(`Playing random video from ${channelMetadata.title} (Length: ${durationText})`);
+                            } catch (e: any) {
+                                console.error(e);
+                                setStatus(`Error: ${e.message}`);
+                            }
+                        }}
+                        disabled={!playerRef.current}
+                        className="w-full inline-flex justify-center rounded-md border border-transparent bg-indigo-600 py-2 px-4 text-sm font-medium text-white shadow-sm hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:ring-offset-2 transition-colors duration-200 disabled:opacity-50"
+                    >
+                        Random Pick
+                    </button>
+                    {channelInfo && (
+                        <div className="mt-2 text-sm text-gray-600 text-left">
+                            <p>Channel: <span className="font-semibold">{channelInfo.title}</span></p>
+                            <p>Videos Fetched: <span className="font-semibold">{channelInfo.count}</span></p>
+                        </div>
+                    )}
+                </div>
 
                 <div className="p-4 bg-gray-100 rounded-md text-left">
                     <p className="text-sm font-mono text-gray-800">
