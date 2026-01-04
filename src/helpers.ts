@@ -114,20 +114,11 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
       sessionId = window.localStorage.getItem('tube-ts-session-id');
     }
 
-    if (!sessionId) {
-      // Default session ID provided by user to fix load video error on GitHub Pages
-      sessionId = '9a1de8cd94d7bd011ab8fb037860f323df0b292354fc1c4fb6588ea2a70c0094';
-    }
-
     if (sessionId) {
       proxyUrl.searchParams.set('session', sessionId);
     }
   } catch {
     // Ignore errors when accessing localStorage (e.g. security restrictions)
-    // Even if localStorage fails, we should try to use the default session ID if possible,
-    // but the catch block here is for the whole block.
-    // Let's refactor slightly to ensure default is used even if localStorage access throws.
-    proxyUrl.searchParams.set('session', '9a1de8cd94d7bd011ab8fb037860f323df0b292354fc1c4fb6588ea2a70c0094');
   }
 
   const headersObj: Record<string, string> = {};
