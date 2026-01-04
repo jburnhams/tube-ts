@@ -142,11 +142,11 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
   const response = await fetch(proxyUrl, requestInit);
 
   const contentType = response.headers.get('content-type');
+  // youtubei.js requests return JSON (application/json) or JS (text/javascript).
+  // If we get HTML, it's almost certainly a proxy error page or captive portal, even if 200 OK.
   if (contentType && contentType.includes('text/html')) {
-     if (!response.ok || response.status >= 400) {
-        const text = await response.text();
-        throw new Error(`Proxy returned HTML error: ${response.status} ${response.statusText} - ${text.substring(0, 100)}`);
-     }
+     const text = await response.text();
+     throw new Error(`Proxy returned HTML (likely error page): ${response.status} ${response.statusText} - ${text.substring(0, 100)}`);
   }
 
   return response;
