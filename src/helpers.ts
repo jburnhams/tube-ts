@@ -106,6 +106,15 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
     headers
   };
 
+  if (input instanceof Request) {
+    if (!requestInit.method) {
+      requestInit.method = input.method;
+    }
+    // If body is missing in init, we might want to copy it from input?
+    // However, consuming request body is tricky (stream).
+    // The main issue reported is that method is lost but body is present in init.
+  }
+
   const response = await fetch(proxyUrl, requestInit);
 
   // If the response is not OK, or if it looks like an HTML error page when we expect something else,
