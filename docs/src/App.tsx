@@ -4,6 +4,7 @@ import { TubePlayer } from 'tube-ts'
 function App() {
   const [videoId, setVideoId] = useState('dQw4w9WgXcQ')
   const [sessionId, setSessionId] = useState(() => localStorage.getItem('tube-ts-session-id') || '')
+  const [apiKey, setApiKey] = useState(() => localStorage.getItem('tube-ts-api-key') || '')
   const [status, setStatus] = useState('Ready')
   const [channelId, setChannelId] = useState('UC_x5XG1OV2P6uZZ5FSM9Ttw') // Default to Google Developers
   const [channelInfo, setChannelInfo] = useState<{ title: string; count: number } | null>(null)
@@ -15,12 +16,19 @@ function App() {
   }, [sessionId]);
 
   useEffect(() => {
+    localStorage.setItem('tube-ts-api-key', apiKey);
+    if (playerRef.current) {
+        playerRef.current.setApiKey(apiKey);
+    }
+  }, [apiKey]);
+
+  useEffect(() => {
     if (containerRef.current && !playerRef.current) {
         // Initialize player when component mounts and container is ready
         containerRef.current.id = 'tube-player-container';
         try {
             const player = new TubePlayer('tube-player-container');
-            player.initialize().then(() => {
+            player.initialize({ apiKey }).then(() => {
                 playerRef.current = player;
                 setStatus('Player Initialized');
             }).catch(e => {
@@ -92,6 +100,20 @@ function App() {
                         onChange={(e) => setSessionId(e.target.value)}
                         className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
                         placeholder="Enter Session ID"
+                    />
+                </div>
+
+                <div>
+                    <label htmlFor="apiKey" className="block text-sm font-medium text-gray-700 text-left mb-1">
+                        YouTube API Key
+                    </label>
+                    <input
+                        id="apiKey"
+                        type="text"
+                        value={apiKey}
+                        onChange={(e) => setApiKey(e.target.value)}
+                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                        placeholder="Enter YouTube API Key"
                     />
                 </div>
 
