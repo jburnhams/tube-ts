@@ -84,10 +84,16 @@ export class TubePlayer {
   }
 
   // Store initialization options for retry logic
-  private initOptions?: { useProxy?: boolean; cache?: boolean };
+  private initOptions?: { useProxy?: boolean; cache?: boolean; apiKey?: string };
+  private apiKey?: string;
 
-  async initialize(options?: { useProxy?: boolean; cache?: boolean }) {
+  setApiKey(key: string) {
+    this.apiKey = key;
+  }
+
+  async initialize(options?: { useProxy?: boolean; cache?: boolean; apiKey?: string }) {
     this.initOptions = options;
+    this.apiKey = options?.apiKey;
     let retryCount = 0;
     const maxRetries = 3;
     const useProxy = options?.useProxy ?? true;
@@ -182,6 +188,10 @@ export class TubePlayer {
   }
 
   async fetchChannelVideos(channelId: string, maxVideos: number = -1): Promise<ChannelMetadata> {
+    if (this.apiKey) {
+      return this.fetchChannelVideosViaApi(channelId, maxVideos);
+    }
+
     if (!this.innertube) {
       throw new Error('TubePlayer not initialized. Call initialize() first.');
     }
@@ -420,6 +430,80 @@ export class TubePlayer {
 
   // Track retry state to prevent infinite loops
   private isRetrying = false;
+
+  private async fetchChannelVideosViaApi(channelId: string, maxVideos: number): Promise<ChannelMetadata> {
+    // Fetch uploads playlist ID
+    const channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,contentDetails&id=${channelId}&key=${this.apiKey}`;
+    const channelRes = await fetch(channelUrl);
+    if (!channelRes.ok) throw new Error(`API Error: ${channelRes.status} ${channelRes.statusText}`);
+    const channelData = await channelRes.json();
+
+    if (!channelData.items || channelData.items.length === 0) {
+      throw new Error('Channel not found');
+    }
+
+    const uploadsId = channelData.items[0].contentDetails.relatedPlaylists.uploads;
+    const channelTitle = channelData.items[0].snippet.title;
+
+    const allVideos: VideoMetadata[] = [];
+    let nextPageToken = '';
+
+    do {
+      const limit = maxVideos > 0 ? Math.min(50, maxVideos - allVideos.length) : 50;
+      const plUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${uploadsId}&maxResults=${limit}&key=${this.apiKey}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`;
+
+      const plRes = await fetch(plUrl);
+      if (!plRes.ok) throw new Error(`API Error: ${plRes.status} ${plRes.statusText}`);
+      const plData = await plRes.json();
+
+      if (!plData.items) break;
+
+      const videoIds = plData.items.map((item: any) => item.contentDetails.videoId);
+
+      // Fetch durations
+      if (videoIds.length > 0) {
+        const vidUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds.join(',')}&key=${this.apiKey}`;
+        const vidRes = await fetch(vidUrl);
+        const vidData = await vidRes.json();
+
+        const durationMap = new Map<string, number>();
+        if (vidData.items) {
+          for (const item of vidData.items) {
+            durationMap.set(item.id, this.parseIsoDuration(item.contentDetails.duration));
+          }
+        }
+
+        for (const item of plData.items) {
+          const id = item.contentDetails.videoId;
+          allVideos.push({
+            id: id,
+            title: item.snippet.title,
+            duration: durationMap.get(id) || 0
+          });
+        }
+      }
+
+      nextPageToken = plData.nextPageToken;
+
+      if (maxVideos > 0 && allVideos.length >= maxVideos) break;
+    } while (nextPageToken);
+
+    return {
+      title: channelTitle,
+      videos: allVideos
+    };
+  }
+
+  private parseIsoDuration(duration: string): number {
+    const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
+    if (!match) return 0;
+
+    const hours = (parseInt(match[1]) || 0);
+    const minutes = (parseInt(match[2]) || 0);
+    const seconds = (parseInt(match[3]) || 0);
+
+    return hours * 3600 + minutes * 60 + seconds;
+  }
 
   private async mintContentWebPO() {
     if (!this.playbackWebPoTokenContentBinding || this.playbackWebPoTokenCreationLock) return;
