@@ -187,7 +187,7 @@ export class TubePlayer {
     });
   }
 
-  async fetchChannelVideos(channelId: string, maxVideos: number = -1): Promise<ChannelMetadata> {
+  async fetchChannelVideos(channelId: string, maxVideos: number = 100): Promise<ChannelMetadata> {
     if (this.apiKey) {
       return this.fetchChannelVideosViaApi(channelId, maxVideos);
     }
