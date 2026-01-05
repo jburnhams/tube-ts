@@ -1,6 +1,7 @@
 import shaka from 'shaka-player/dist/shaka-player.ui';
 import type { Types, YT } from 'youtubei.js/web';
-import { Constants, Innertube, Platform, UniversalCache, Utils, YT as YTUtils } from 'youtubei.js/web';
+import { Constants, Innertube, Platform, UniversalCache, Utils, YT as YTUtils, Mixins } from 'youtubei.js/web';
+import type { VideoMetadata, ChannelMetadata } from './types/ChannelData.js';
 import { SabrStreamingAdapter } from 'googlevideo/sabr-streaming-adapter';
 import { buildSabrFormat } from 'googlevideo/utils';
 import { ShakaPlayerAdapter } from './ShakaPlayerAdapter.js';
@@ -178,6 +179,97 @@ export class TubePlayer {
       ],
       customContextMenu: true
     });
+  }
+
+  async fetchChannelVideos(channelId: string, maxVideos: number = -1): Promise<ChannelMetadata> {
+    if (!this.innertube) {
+      throw new Error('TubePlayer not initialized. Call initialize() first.');
+    }
+
+    // Get the channel object
+    const channel = await this.innertube.getChannel(channelId);
+    // Get the videos tab (returns a Channel instance representing the feed)
+    const videosTab = await channel.getVideos();
+
+    // We start with a Channel (which is a Feed) and getContinuation returns ChannelListContinuation (which is also a Feed)
+    let feed: Mixins.Feed | any = videosTab;
+    const allVideos: VideoMetadata[] = [];
+
+    // Helper to extract video info
+    const extractVideos = (currentFeed: Mixins.Feed | any) => {
+      // videos getter returns an ObservedArray of various video types
+      if (!currentFeed.videos) return;
+
+      for (const video of currentFeed.videos) {
+        // We only care about objects that have a video ID
+        // GridVideo, CompactVideo, Video have video_id
+        // PlaylistVideo has id
+        let id = '';
+        let title = '';
+        let duration = 0;
+
+        if ('video_id' in video) {
+          id = (video as any).video_id;
+        } else if ('id' in video) {
+          id = (video as any).id;
+        }
+
+        if ('title' in video) {
+          const titleObj = (video as any).title;
+          // title is usually a Text object which has toString()
+          title = titleObj.toString ? titleObj.toString() : String(titleObj);
+        }
+
+        if ('duration' in video) {
+          const dur = (video as any).duration;
+          // CompactVideo/Video/PlaylistVideo have .seconds
+          if (dur && typeof dur.seconds === 'number') {
+            duration = dur.seconds;
+          } else if (dur && dur.text) {
+             // GridVideo might be Text object
+             duration = Utils.timeToSeconds(dur.text.toString());
+          } else if (dur && typeof dur === 'object' && dur.toString) {
+             // Fallback for Text object
+             duration = Utils.timeToSeconds(dur.toString());
+          }
+        }
+
+        if (id) {
+          allVideos.push({ id, title, duration });
+        }
+
+        if (maxVideos > 0 && allVideos.length >= maxVideos) {
+          break;
+        }
+      }
+    };
+
+    extractVideos(feed);
+
+    while (feed.has_continuation && (maxVideos === -1 || allVideos.length < maxVideos)) {
+      feed = await feed.getContinuation();
+      extractVideos(feed);
+    }
+
+    return {
+      title: channel.metadata?.title,
+      videos: allVideos
+    };
+  }
+
+  async playRandomChannelVideo(channelId: string): Promise<{ videoInfo: YT.VideoInfo['basic_info'], channelMetadata: ChannelMetadata }> {
+    const data = await this.fetchChannelVideos(channelId);
+    if (data.videos.length === 0) {
+      throw new Error('No videos found in this channel.');
+    }
+
+    const randomVideo = data.videos[Math.floor(Math.random() * data.videos.length)];
+    const videoInfo = await this.loadVideo(randomVideo.id);
+
+    return {
+      videoInfo,
+      channelMetadata: data
+    };
   }
 
   async loadVideo(videoId: string): Promise<YT.VideoInfo['basic_info']> {
