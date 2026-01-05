@@ -192,6 +192,53 @@ describe('Channel Fetching', () => {
     expect(result.videos[1].id).toBe('v2');
   });
 
+  it('should limit videos to 100 by default', async () => {
+    const videos = Array.from({ length: 150 }, (_, i) => createMockVideo(`v${i}`, `Video ${i}`, { seconds: 60 }));
+
+    // Simulate pagination
+    const mockFeed1 = {
+      videos: videos.slice(0, 50),
+      has_continuation: true,
+      getContinuation: vi.fn()
+    };
+
+    const mockFeed2 = {
+      videos: videos.slice(50, 100),
+      has_continuation: true,
+      getContinuation: vi.fn()
+    };
+
+    const mockFeed3 = {
+      videos: videos.slice(100, 150),
+      has_continuation: false,
+      getContinuation: vi.fn()
+    };
+
+    mockFeed1.getContinuation.mockResolvedValue(mockFeed2);
+    mockFeed2.getContinuation.mockResolvedValue(mockFeed3);
+
+    const mockChannel = {
+      metadata: { title: 'Test Channel' },
+      getVideos: vi.fn().mockResolvedValue(mockFeed1)
+    };
+
+    mockInnertube.getChannel.mockResolvedValue(mockChannel);
+
+    const result = await player.fetchChannelVideos('channel-id');
+
+    expect(mockChannel.getVideos).toHaveBeenCalled();
+    // It should fetch the second page (to get to 100) but not the third
+    expect(mockFeed1.getContinuation).toHaveBeenCalled();
+    // mockFeed1.getContinuation returns mockFeed2 (page 2).
+    // After processing page 2, we have 100 videos.
+    // The loop condition (allVideos.length < maxVideos) becomes 100 < 100 (False).
+    // So we should NOT fetch the next continuation from mockFeed2.
+    expect(mockFeed2.getContinuation).not.toHaveBeenCalled();
+    expect(mockFeed3.getContinuation).not.toHaveBeenCalled();
+
+    expect(result.videos).toHaveLength(100);
+  });
+
   it('should handle GridVideo duration format', async () => {
     const mockFeed = {
       videos: [
