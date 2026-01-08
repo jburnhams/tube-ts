@@ -1,15 +1,18 @@
 {
-  "name": "tube-ts",
+  "name": "@jburnhams/tube-ts",
   "version": "0.1.0",
-  "description": "A description of your library",
+  "description": "A TypeScript library designed to play YouTube videos by wrapping shaka-player and youtubei.js",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/YOUR_REPO.git"
+    "url": "https://github.com/jburnhams/tube-ts.git"
   },
   "main": "dist/index.cjs",
   "module": "dist/index.js",
   "types": "dist/index.d.ts",
   "type": "module",
+  "publishConfig": {
+    "access": "public"
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -53,7 +56,7 @@
     "library",
     "template"
   ],
-  "author": "",
+  "author": "Jonathan Burnhams <jburnhams@gmail.com>",
   "license": "MIT",
   "workspaces": [
     "docs"
