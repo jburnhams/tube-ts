@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { TubePlayer } from 'tube-ts'
+import { TubePlayer } from '@jburnhams/tube-ts'
 
 function App() {
   const [videoId, setVideoId] = useState('dQw4w9WgXcQ')
