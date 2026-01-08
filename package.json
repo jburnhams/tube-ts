@@ -44,7 +44,7 @@
     "build": "tsup",
     "patch:shaka": "node scripts/patchShaka.mjs",
     "postinstall": "npm run patch:shaka",
-    "build:docs": "npm run build -w docs",
+    "build:docs": "npm run build && npm run build -w docs",
     "test": "vitest run",
     "test:unit": "vitest run tests/unit",
     "test:integration": "npm run build && vitest run tests/integration",

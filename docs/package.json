@@ -10,7 +10,7 @@
     "test": "vitest run"
   },
   "dependencies": {
-    "tube-ts": "file:..",
+    "@jburnhams/tube-ts": "file:..",
     "react": "^18.2.0",
     "react-dom": "^18.2.0"
   },
