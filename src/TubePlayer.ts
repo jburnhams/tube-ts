@@ -1,7 +1,6 @@
 import shaka from 'shaka-player/dist/shaka-player.ui';
 import type { Types, YT } from 'youtubei.js/web';
-import { Constants, Innertube, Platform, UniversalCache, Utils, YT as YTUtils, Mixins } from 'youtubei.js/web';
-import type { VideoMetadata, ChannelMetadata } from './types/ChannelData.js';
+import { Constants, Innertube, Platform, UniversalCache, Utils, YT as YTUtils } from 'youtubei.js/web';
 import { SabrStreamingAdapter } from 'googlevideo/sabr-streaming-adapter';
 import { buildSabrFormat } from 'googlevideo/utils';
 import { ShakaPlayerAdapter } from './ShakaPlayerAdapter.js';
@@ -84,16 +83,10 @@ export class TubePlayer {
   }
 
   // Store initialization options for retry logic
-  private initOptions?: { useProxy?: boolean; cache?: boolean; apiKey?: string };
-  private apiKey?: string;
+  private initOptions?: { useProxy?: boolean; cache?: boolean };
 
-  setApiKey(key: string) {
-    this.apiKey = key;
-  }
-
-  async initialize(options?: { useProxy?: boolean; cache?: boolean; apiKey?: string }) {
+  async initialize(options?: { useProxy?: boolean; cache?: boolean }) {
     this.initOptions = options;
-    this.apiKey = options?.apiKey;
     let retryCount = 0;
     const maxRetries = 3;
     const useProxy = options?.useProxy ?? true;
@@ -185,101 +178,6 @@ export class TubePlayer {
       ],
       customContextMenu: true
     });
-  }
-
-  async fetchChannelVideos(channelId: string, maxVideos: number = 100): Promise<ChannelMetadata> {
-    if (this.apiKey) {
-      return this.fetchChannelVideosViaApi(channelId, maxVideos);
-    }
-
-    if (!this.innertube) {
-      throw new Error('TubePlayer not initialized. Call initialize() first.');
-    }
-
-    // Get the channel object
-    const channel = await this.innertube.getChannel(channelId);
-    // Get the videos tab (returns a Channel instance representing the feed)
-    const videosTab = await channel.getVideos();
-
-    // We start with a Channel (which is a Feed) and getContinuation returns ChannelListContinuation (which is also a Feed)
-    let feed: Mixins.Feed | any = videosTab;
-    const allVideos: VideoMetadata[] = [];
-
-    // Helper to extract video info
-    const extractVideos = (currentFeed: Mixins.Feed | any) => {
-      // videos getter returns an ObservedArray of various video types
-      if (!currentFeed.videos) return;
-
-      for (const video of currentFeed.videos) {
-        // We only care about objects that have a video ID
-        // GridVideo, CompactVideo, Video have video_id
-        // PlaylistVideo has id
-        let id = '';
-        let title = '';
-        let duration = 0;
-
-        if ('video_id' in video) {
-          id = (video as any).video_id;
-        } else if ('id' in video) {
-          id = (video as any).id;
-        }
-
-        if ('title' in video) {
-          const titleObj = (video as any).title;
-          // title is usually a Text object which has toString()
-          title = titleObj.toString ? titleObj.toString() : String(titleObj);
-        }
-
-        if ('duration' in video) {
-          const dur = (video as any).duration;
-          // CompactVideo/Video/PlaylistVideo have .seconds
-          if (dur && typeof dur.seconds === 'number') {
-            duration = dur.seconds;
-          } else if (dur && dur.text) {
-             // GridVideo might be Text object
-             duration = Utils.timeToSeconds(dur.text.toString());
-          } else if (dur && typeof dur === 'object' && dur.toString) {
-             // Fallback for Text object
-             duration = Utils.timeToSeconds(dur.toString());
-          }
-        }
-
-        if (id) {
-          allVideos.push({ id, title, duration });
-        }
-
-        if (maxVideos > 0 && allVideos.length >= maxVideos) {
-          break;
-        }
-      }
-    };
-
-    extractVideos(feed);
-
-    while (feed.has_continuation && (maxVideos === -1 || allVideos.length < maxVideos)) {
-      feed = await feed.getContinuation();
-      extractVideos(feed);
-    }
-
-    return {
-      title: channel.metadata?.title,
-      videos: allVideos
-    };
-  }
-
-  async playRandomChannelVideo(channelId: string): Promise<{ videoInfo: YT.VideoInfo['basic_info'], channelMetadata: ChannelMetadata }> {
-    const data = await this.fetchChannelVideos(channelId);
-    if (data.videos.length === 0) {
-      throw new Error('No videos found in this channel.');
-    }
-
-    const randomVideo = data.videos[Math.floor(Math.random() * data.videos.length)];
-    const videoInfo = await this.loadVideo(randomVideo.id);
-
-    return {
-      videoInfo,
-      channelMetadata: data
-    };
   }
 
   async loadVideo(videoId: string): Promise<YT.VideoInfo['basic_info']> {
@@ -430,80 +328,6 @@ export class TubePlayer {
 
   // Track retry state to prevent infinite loops
   private isRetrying = false;
-
-  private async fetchChannelVideosViaApi(channelId: string, maxVideos: number): Promise<ChannelMetadata> {
-    // Fetch uploads playlist ID
-    const channelUrl = `https://www.googleapis.com/youtube/v3/channels?part=snippet,contentDetails&id=${channelId}&key=${this.apiKey}`;
-    const channelRes = await fetch(channelUrl);
-    if (!channelRes.ok) throw new Error(`API Error: ${channelRes.status} ${channelRes.statusText}`);
-    const channelData = await channelRes.json();
-
-    if (!channelData.items || channelData.items.length === 0) {
-      throw new Error('Channel not found');
-    }
-
-    const uploadsId = channelData.items[0].contentDetails.relatedPlaylists.uploads;
-    const channelTitle = channelData.items[0].snippet.title;
-
-    const allVideos: VideoMetadata[] = [];
-    let nextPageToken = '';
-
-    do {
-      const limit = maxVideos > 0 ? Math.min(50, maxVideos - allVideos.length) : 50;
-      const plUrl = `https://www.googleapis.com/youtube/v3/playlistItems?part=snippet,contentDetails&playlistId=${uploadsId}&maxResults=${limit}&key=${this.apiKey}${nextPageToken ? `&pageToken=${nextPageToken}` : ''}`;
-
-      const plRes = await fetch(plUrl);
-      if (!plRes.ok) throw new Error(`API Error: ${plRes.status} ${plRes.statusText}`);
-      const plData = await plRes.json();
-
-      if (!plData.items) break;
-
-      const videoIds = plData.items.map((item: any) => item.contentDetails.videoId);
-
-      // Fetch durations
-      if (videoIds.length > 0) {
-        const vidUrl = `https://www.googleapis.com/youtube/v3/videos?part=contentDetails&id=${videoIds.join(',')}&key=${this.apiKey}`;
-        const vidRes = await fetch(vidUrl);
-        const vidData = await vidRes.json();
-
-        const durationMap = new Map<string, number>();
-        if (vidData.items) {
-          for (const item of vidData.items) {
-            durationMap.set(item.id, this.parseIsoDuration(item.contentDetails.duration));
-          }
-        }
-
-        for (const item of plData.items) {
-          const id = item.contentDetails.videoId;
-          allVideos.push({
-            id: id,
-            title: item.snippet.title,
-            duration: durationMap.get(id) || 0
-          });
-        }
-      }
-
-      nextPageToken = plData.nextPageToken;
-
-      if (maxVideos > 0 && allVideos.length >= maxVideos) break;
-    } while (nextPageToken);
-
-    return {
-      title: channelTitle,
-      videos: allVideos
-    };
-  }
-
-  private parseIsoDuration(duration: string): number {
-    const match = duration.match(/PT(\d+H)?(\d+M)?(\d+S)?/);
-    if (!match) return 0;
-
-    const hours = (parseInt(match[1]) || 0);
-    const minutes = (parseInt(match[2]) || 0);
-    const seconds = (parseInt(match[3]) || 0);
-
-    return hours * 3600 + minutes * 60 + seconds;
-  }
 
   private async mintContentWebPO() {
     if (!this.playbackWebPoTokenContentBinding || this.playbackWebPoTokenCreationLock) return;
