@@ -8,6 +8,8 @@ import { botguardService } from './BotguardService.js';
 import { fetchFunction } from './helpers.js';
 import 'shaka-player/dist/controls.css';
 
+let globalLoadRetryCount = 0;
+
 // Shim for youtubei.js
 Platform.shim.eval = async (data: Types.BuildScriptResult, env: Record<string, Types.VMPrimative>) => {
   const properties = [];
@@ -88,7 +90,7 @@ export class TubePlayer {
   async initialize(options?: { useProxy?: boolean; cache?: boolean; sessionId?: string }) {
     this.initOptions = options;
     let retryCount = 0;
-    const maxRetries = 3;
+    const maxRetries = 2;
     const useProxy = options?.useProxy ?? true;
     const sessionId = options?.sessionId;
     // Default to strict caching unless explicitly disabled seems safest,
@@ -303,6 +305,9 @@ export class TubePlayer {
 
       await this.player.load(manifestUri);
 
+      // Reset global retry count on success
+      globalLoadRetryCount = 0;
+
       return videoInfo.basic_info;
 
     } catch (e: any) {
@@ -310,6 +315,12 @@ export class TubePlayer {
 
       // Retry mechanism for stale/poisoned cache (e.g. bad player script causing signatureTimestamp: 0)
       if (!this.isRetrying && this.initOptions) {
+        if (globalLoadRetryCount >= 1) {
+          console.error('[TubePlayer] Global retry limit reached. Not retrying.');
+          throw e;
+        }
+
+        globalLoadRetryCount++;
         console.warn('[TubePlayer] Load failed. Retrying with cache disabled to fetch fresh player script...');
         this.isRetrying = true;
         try {
