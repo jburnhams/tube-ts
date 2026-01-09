@@ -106,7 +106,8 @@ describe('Video Load Integration', () => {
 
             const requestInit = {
                 ...init,
-                headers
+                headers,
+                credentials: 'include' as RequestCredentials
             };
 
             if (input instanceof Request) {
