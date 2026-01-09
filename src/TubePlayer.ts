@@ -83,13 +83,14 @@ export class TubePlayer {
   }
 
   // Store initialization options for retry logic
-  private initOptions?: { useProxy?: boolean; cache?: boolean };
+  private initOptions?: { useProxy?: boolean; cache?: boolean; sessionId?: string };
 
-  async initialize(options?: { useProxy?: boolean; cache?: boolean }) {
+  async initialize(options?: { useProxy?: boolean; cache?: boolean; sessionId?: string }) {
     this.initOptions = options;
     let retryCount = 0;
     const maxRetries = 3;
     const useProxy = options?.useProxy ?? true;
+    const sessionId = options?.sessionId;
     // Default to strict caching unless explicitly disabled seems safest,
     // but the original logic was `retryCount === 0` (so true on first attempt).
     // Let's explicitly support a `cache` override.
@@ -125,13 +126,13 @@ export class TubePlayer {
             // If we are skipping proxy, we still want to apply the timestamp, 
             // but we use native fetch (or default behavior) instead of fetchFunction
             if (!useProxy) return fetch(urlObj.toString(), modifiedInit);
-            return fetchFunction(urlObj.toString(), modifiedInit);
+            return fetchFunction(urlObj.toString(), modifiedInit, sessionId);
           }
 
           if (!useProxy) {
             return fetch(input, init);
           }
-          return fetchFunction(input, init);
+          return fetchFunction(input, init, sessionId);
         };
 
         this.innertube = await Innertube.create({

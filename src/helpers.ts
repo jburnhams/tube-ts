@@ -72,7 +72,7 @@ export function makeResponse(
 }
 
 // Proxied fetchFunction using https://vps.jonathanburnhams.com/
-export async function fetchFunction(input: string | Request | URL, init?: RequestInit): Promise<Response> {
+export async function fetchFunction(input: string | Request | URL, init?: RequestInit, explicitSessionId?: string): Promise<Response> {
   const url = input instanceof URL ? input : new URL(typeof input === 'string' ? input : input.url);
   const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
 
@@ -127,11 +127,11 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
   }
 
   try {
-    // Prioritize session ID from environment variable if present (for testing)
-    let sessionId: string | null = null;
-    if (typeof process !== 'undefined' && process.env && process.env.PROXY_SESSION_ID) {
+    // Prioritize explicit session ID, then environment variable, then localStorage
+    let sessionId: string | null = explicitSessionId || null;
+    if (!sessionId && typeof process !== 'undefined' && process.env && process.env.PROXY_SESSION_ID) {
       sessionId = process.env.PROXY_SESSION_ID;
-    } else if (typeof window !== 'undefined' && window.localStorage) {
+    } else if (!sessionId && typeof window !== 'undefined' && window.localStorage) {
       sessionId = window.localStorage.getItem('tube-ts-session-id');
     }
 
