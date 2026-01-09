@@ -151,7 +151,8 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
 
   const requestInit = {
     ...init,
-    headers
+    headers,
+    credentials: 'include' as RequestCredentials
   };
 
   if (input instanceof Request) {
