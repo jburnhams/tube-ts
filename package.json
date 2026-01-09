@@ -37,7 +37,8 @@
   "jsdelivr": "dist/browser/index.global.js",
   "files": [
     "dist",
-    "README.md"
+    "README.md",
+    "scripts"
   ],
   "scripts": {
     "clean": "node -e \"fs.rmSync('dist', { recursive: true, force: true })\"",
