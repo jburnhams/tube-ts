@@ -61,6 +61,9 @@ export class TubePlayer {
   private coldStartToken?: string;
   private container: HTMLElement;
   private videoElement: HTMLVideoElement;
+  private playIntervalListener?: () => void;
+  private playIntervalSeconds?: number;
+  private playTimeoutId?: any;
 
   constructor(containerId: string) {
     const container = document.getElementById(containerId);
@@ -73,6 +76,23 @@ export class TubePlayer {
     this.videoElement.style.height = '100%';
     this.videoElement.controls = false; // We use Shaka UI
     this.container.appendChild(this.videoElement);
+
+    this.videoElement.addEventListener('playing', () => {
+      if (this.playIntervalSeconds && this.playIntervalListener) {
+        if (this.playTimeoutId) clearTimeout(this.playTimeoutId);
+        this.playTimeoutId = setTimeout(() => {
+          this.pause();
+          if (this.playIntervalListener) this.playIntervalListener();
+        }, this.playIntervalSeconds * 1000);
+      }
+    });
+
+    this.videoElement.addEventListener('pause', () => {
+      if (this.playTimeoutId) {
+        clearTimeout(this.playTimeoutId);
+        this.playTimeoutId = undefined;
+      }
+    });
 
     shaka.polyfill.installAll();
 
@@ -366,5 +386,18 @@ export class TubePlayer {
     botguardService.dispose();
     this.ui.destroy();
     this.videoElement.remove();
+  }
+
+  public onPlayInterval(interval: number, listener: () => void) {
+    this.playIntervalSeconds = interval;
+    this.playIntervalListener = listener;
+  }
+
+  public play() {
+    this.videoElement.play();
+  }
+
+  public pause() {
+    this.videoElement.pause();
   }
 }
