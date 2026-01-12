@@ -4,6 +4,7 @@ import { TubePlayer } from '@jburnhams/tube-ts'
 function App() {
   const [videoId, setVideoId] = useState('dQw4w9WgXcQ')
   const [sessionId, setSessionId] = useState(() => localStorage.getItem('tube-ts-session-id') || '')
+  const [cookie, setCookie] = useState(() => localStorage.getItem('tube-ts-cookie') || '')
   const [status, setStatus] = useState('Ready')
   const [intervalSeconds, setIntervalSeconds] = useState(10)
   const [intervalCount, setIntervalCount] = useState(0)
@@ -14,6 +15,10 @@ function App() {
   useEffect(() => {
     localStorage.setItem('tube-ts-session-id', sessionId);
   }, [sessionId]);
+
+  useEffect(() => {
+    localStorage.setItem('tube-ts-cookie', cookie);
+  }, [cookie]);
 
   useEffect(() => {
     if (containerRef.current && !playerRef.current) {
@@ -28,7 +33,7 @@ function App() {
                 setIsModalOpen(true);
             });
 
-            player.initialize().then(() => {
+            player.initialize({ sessionId, cookie }).then(() => {
                 playerRef.current = player;
                 setStatus('Player Initialized');
             }).catch(e => {
@@ -141,6 +146,20 @@ function App() {
                         onChange={(e) => setSessionId(e.target.value)}
                         className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
                         placeholder="Enter Session ID"
+                    />
+                </div>
+
+                <div>
+                    <label htmlFor="cookie" className="block text-sm font-medium text-gray-700 text-left mb-1">
+                        Cookie
+                    </label>
+                    <input
+                        id="cookie"
+                        type="text"
+                        value={cookie}
+                        onChange={(e) => setCookie(e.target.value)}
+                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                        placeholder="Enter Cookie"
                     />
                 </div>
 
