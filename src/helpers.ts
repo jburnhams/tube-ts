@@ -165,6 +165,35 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
     }
   }
 
+  if (proxyUrl.hostname === 'vps.jonathanburnhams.com') {
+    try {
+      const debugUrl = new URL(proxyUrl.toString());
+      debugUrl.searchParams.set('debug', '1');
+
+      const debugInit = { ...requestInit };
+      // Avoid reusing ReadableStream bodies as they lock on access
+      if (debugInit.body && (
+        (typeof ReadableStream !== 'undefined' && debugInit.body instanceof ReadableStream) ||
+        // Check for stream-like objects (e.g. in some polyfills or Node environments)
+        (typeof debugInit.body === 'object' && 'getReader' in (debugInit.body as any))
+      )) {
+        console.warn('[DEBUG] Omitting body in debug request because it is a stream.');
+        delete debugInit.body;
+      }
+
+      fetch(debugUrl, debugInit)
+        .then(async (res) => {
+          const text = await res.text();
+          console.log(`[DEBUG] ${debugUrl}: ${res.status} ${res.statusText}`, text);
+        })
+        .catch((err) => {
+          console.error(`[DEBUG] Request failed: ${debugUrl}`, err);
+        });
+    } catch (e) {
+      console.error('[DEBUG] Error initiating debug request', e);
+    }
+  }
+
   const response = await fetch(proxyUrl, requestInit);
 
   const contentType = response.headers.get('content-type');
