@@ -149,13 +149,13 @@ export class TubePlayer {
             // If we are skipping proxy, we still want to apply the timestamp, 
             // but we use native fetch (or default behavior) instead of fetchFunction
             if (!useProxy) return fetch(urlObj.toString(), modifiedInit);
-            return fetchFunction(urlObj.toString(), modifiedInit, sessionId, cookie, retryCount > 0);
+            return fetchFunction(urlObj.toString(), modifiedInit, sessionId, cookie, retryCount > 0 || globalLoadRetryCount > 0);
           }
 
           if (!useProxy) {
             return fetch(input, init);
           }
-          return fetchFunction(input, init, sessionId, cookie, retryCount > 0);
+          return fetchFunction(input, init, sessionId, cookie, retryCount > 0 || globalLoadRetryCount > 0);
         };
 
         this.innertube = await Innertube.create({
