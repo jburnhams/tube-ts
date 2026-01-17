@@ -72,7 +72,7 @@ export function makeResponse(
 }
 
 // Proxied fetchFunction using https://vps.jonathanburnhams.com/
-export async function fetchFunction(input: string | Request | URL, init?: RequestInit, explicitSessionId?: string, explicitCookie?: string): Promise<Response> {
+export async function fetchFunction(input: string | Request | URL, init?: RequestInit, explicitSessionId?: string, explicitCookie?: string, isRetry: boolean = false): Promise<Response> {
   const url = input instanceof URL ? input : new URL(typeof input === 'string' ? input : input.url);
   const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
 
@@ -165,7 +165,7 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
     }
   }
 
-  if (proxyUrl.hostname === 'vps.jonathanburnhams.com') {
+  if (proxyUrl.hostname === 'vps.jonathanburnhams.com' && isRetry) {
     try {
       const debugUrl = new URL(proxyUrl.toString());
       debugUrl.searchParams.set('debug', '1');
