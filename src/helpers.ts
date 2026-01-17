@@ -72,7 +72,7 @@ export function makeResponse(
 }
 
 // Proxied fetchFunction using https://vps.jonathanburnhams.com/
-export async function fetchFunction(input: string | Request | URL, init?: RequestInit, explicitSessionId?: string, explicitCookie?: string, isRetry: boolean = false): Promise<Response> {
+export async function fetchFunction(input: string | Request | URL, init?: RequestInit, explicitSessionId?: string, explicitCookie?: string, isRetry: boolean = false, explicitProxyUrl?: string): Promise<Response> {
   const url = input instanceof URL ? input : new URL(typeof input === 'string' ? input : input.url);
   const headers = new Headers(init?.headers ?? (input instanceof Request ? input.headers : undefined));
 
@@ -102,7 +102,8 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
     return fetch(url.toString(), requestInit);
   }
 
-  const proxyUrl = new URL(url.pathname + url.search, 'https://vps.jonathanburnhams.com/');
+  const baseUrl = explicitProxyUrl || 'https://vps.jonathanburnhams.com/';
+  const proxyUrl = new URL(url.pathname + url.search, baseUrl);
 
   // FIX: Force player scripts to target www.youtube.com
   // When running on GitHub Pages (e.g. /tube-ts/), relative paths like /s/player/... 

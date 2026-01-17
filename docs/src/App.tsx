@@ -5,6 +5,7 @@ function App() {
   const [videoId, setVideoId] = useState('dQw4w9WgXcQ')
   const [sessionId, setSessionId] = useState(() => localStorage.getItem('tube-ts-session-id') || '')
   const [cookie, setCookie] = useState(() => localStorage.getItem('tube-ts-cookie') || '')
+  const [proxyUrl, setProxyUrl] = useState(() => localStorage.getItem('tube-ts-proxy-url') || '')
   const [status, setStatus] = useState('Ready')
   const [intervalSeconds, setIntervalSeconds] = useState(10)
   const [intervalCount, setIntervalCount] = useState(0)
@@ -21,6 +22,10 @@ function App() {
   }, [cookie]);
 
   useEffect(() => {
+    localStorage.setItem('tube-ts-proxy-url', proxyUrl);
+  }, [proxyUrl]);
+
+  useEffect(() => {
     if (containerRef.current && !playerRef.current) {
         // Initialize player when component mounts and container is ready
         containerRef.current.id = 'tube-player-container';
@@ -33,7 +38,7 @@ function App() {
                 setIsModalOpen(true);
             });
 
-            player.initialize({ sessionId, cookie }).then(() => {
+            player.initialize({ sessionId, cookie, proxyUrl }).then(() => {
                 playerRef.current = player;
                 setStatus('Player Initialized');
             }).catch(e => {
@@ -132,6 +137,20 @@ function App() {
                         onChange={(e) => setVideoId(e.target.value)}
                         className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
                         placeholder="Enter Video ID"
+                    />
+                </div>
+
+                <div>
+                    <label htmlFor="proxyUrl" className="block text-sm font-medium text-gray-700 text-left mb-1">
+                        Proxy URL
+                    </label>
+                    <input
+                        id="proxyUrl"
+                        type="text"
+                        value={proxyUrl}
+                        onChange={(e) => setProxyUrl(e.target.value)}
+                        className="block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 sm:text-sm p-2 border"
+                        placeholder="https://vps.jonathanburnhams.com/"
                     />
                 </div>
 
