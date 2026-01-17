@@ -5,6 +5,7 @@ import { BG, buildURL, GOOG_API_KEY } from 'bgutils-js';
 export class BotguardService {
   private readonly waaRequestKey = 'O43z0dpjhgX20SCx4KAo';
 
+  private initAttempts = 0;
   public botguardClient?: BG.BotGuardClient;
   public initializationPromise?: Promise<BG.BotGuardClient | undefined> | null = null;
   public integrityTokenBasedMinter?: BG.WebPoMinter;
@@ -19,9 +20,15 @@ export class BotguardService {
   }
 
   private async setup() {
+    if (this.initAttempts >= 2) {
+      console.warn('[BotguardService] Initialization attempts exceeded limit (2). Aborting.');
+      return;
+    }
+
     if (this.initializationPromise)
       return await this.initializationPromise;
 
+    this.initAttempts++;
     this.initializationPromise = this._initBotguard();
 
     try {
