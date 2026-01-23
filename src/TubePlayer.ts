@@ -5,7 +5,7 @@ import { SabrStreamingAdapter } from 'googlevideo/sabr-streaming-adapter';
 import { buildSabrFormat } from 'googlevideo/utils';
 import { ShakaPlayerAdapter } from './ShakaPlayerAdapter.js';
 import { botguardService } from './BotguardService.js';
-import { fetchFunction } from './helpers.js';
+import { fetchFunction, checkExtension } from './helpers.js';
 import 'shaka-player/dist/controls.css';
 
 let globalLoadRetryCount = 0;
@@ -64,11 +64,16 @@ export class TubePlayer {
   private playIntervalListener?: () => void;
   private playIntervalSeconds?: number;
   private playTimeoutId?: any;
+  public isExtensionPresent: boolean;
 
   constructor(containerId: string) {
     const container = document.getElementById(containerId);
     if (!container) throw new Error(`Container element with ID ${containerId} not found.`);
     this.container = container as HTMLElement;
+
+    // Check for extension
+    this.isExtensionPresent = checkExtension();
+    console.log(`[TubePlayer] Extension present: ${this.isExtensionPresent}`);
 
     // Create video element
     this.videoElement = document.createElement('video');

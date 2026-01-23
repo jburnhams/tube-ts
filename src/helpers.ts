@@ -71,6 +71,14 @@ export function makeResponse(
   );
 }
 
+export function checkExtension(): boolean {
+  return 'ytcBridge' in window && (window as any).ytcBridge.installed;
+}
+
+export function getInjectedProxyFunction() {
+  return (window as any).proxyFetch;
+}
+
 // Proxied fetchFunction using https://vps.jonathanburnhams.com/
 export async function fetchFunction(input: string | Request | URL, init?: RequestInit, explicitSessionId?: string, explicitCookie?: string, isRetry: boolean = false, explicitProxyUrl?: string): Promise<Response> {
   const url = input instanceof URL ? input : new URL(typeof input === 'string' ? input : input.url);
@@ -78,6 +86,19 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
 
   if (url.pathname.includes('v1/player')) {
     url.searchParams.set('$fields', 'playerConfig,storyboards,captions,playabilityStatus,streamingData,responseContext.mainAppWebResponseContext.datasyncId,videoDetails.isLive,videoDetails.isLiveContent,videoDetails.title,videoDetails.author,videoDetails.thumbnail');
+  }
+
+  // Check for ytcBridge extension
+  const proxyFetch = getInjectedProxyFunction();
+  if (proxyFetch && checkExtension()) {
+    const requestInit = {
+      ...init,
+      headers
+    };
+    if (url.pathname.includes('initplayback')) {
+      return fetch(url.toString(), requestInit);
+    }
+    return proxyFetch(url.toString(), requestInit);
   }
 
   // Allow skipping proxy via environment variable (useful for Node.js testing)
