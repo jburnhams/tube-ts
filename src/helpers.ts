@@ -90,7 +90,7 @@ export async function fetchFunction(input: string | Request | URL, init?: Reques
 
   // Check for ytcBridge extension
   const proxyFetch = getInjectedProxyFunction();
-  if (proxyFetch && checkExtension()) {
+  if (proxyFetch) {
     const requestInit = {
       ...init,
       headers
