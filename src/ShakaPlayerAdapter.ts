@@ -48,7 +48,7 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
     this.cacheManager = cacheManager;
 
     const networkingEngine = shaka.net.NetworkingEngine;
-    const schemes = [ 'http', 'https' ];
+    const schemes = ['http', 'https'];
 
     if (!shaka.net.HttpFetchPlugin.isSupported())
       throw new Error('The Fetch API is not supported in this browser.');
@@ -299,8 +299,8 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
         }
       }
 
-      // We use standard fetch now
-      const fetchFn = fetchFunction;
+      // We only make one InnerTube request through the player, and it needs to be proxied properly.
+      const fetchFn = uri.includes('get_drm_license') ? fetchFunction : fetch;
 
       const response = await fetchFn(uri, init);
       headersReceived(headersToGenericObject(response.headers));
@@ -384,7 +384,7 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
       return { videoFormat: undefined, audioFormat: undefined };
     }
 
-    const formatMap = new Map(sabrFormats.map((format) => [ FormatKeyUtils.getUniqueFormatId(format), format ]));
+    const formatMap = new Map(sabrFormats.map((format) => [FormatKeyUtils.getUniqueFormatId(format), format]));
 
     return {
       videoFormat: activeVariant.originalVideoId ? formatMap.get(activeVariant.originalVideoId) : undefined,
@@ -414,7 +414,7 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
       });
 
       if (modifiedRequest) {
-        request.uris = modifiedRequest.url ? [ modifiedRequest.url ] : request.uris;
+        request.uris = modifiedRequest.url ? [modifiedRequest.url] : request.uris;
         request.method = modifiedRequest.method || request.method;
         request.headers = modifiedRequest.headers || request.headers;
         request.body = modifiedRequest.body || request.body;
@@ -439,7 +439,7 @@ export class ShakaPlayerAdapter implements SabrPlayerAdapter {
         data: response.data,
         makeRequest: async (url: string, headers: Record<string, string>) => {
           const retryParameters = this.player!.getConfiguration().streaming.retryParameters;
-          const redirectRequest = shaka.net.NetworkingEngine.makeRequest([ url ], retryParameters);
+          const redirectRequest = shaka.net.NetworkingEngine.makeRequest([url], retryParameters);
           Object.assign(redirectRequest.headers, headers);
 
           const requestOperation = networkingEngine.request(type, redirectRequest, context);

@@ -40,14 +40,14 @@ export class BotguardService {
   }
 
   private async _initBotguard() {
-    const challengeResponse = await fetchFunction(buildURL('Create', true), {
+    const challengeResponse = await fetch(buildURL('Create', true), {
       method: 'POST',
       headers: {
         'content-type': 'application/json+protobuf',
         'x-goog-api-key': GOOG_API_KEY,
         'x-user-agent': 'grpc-web-javascript/0.1'
       },
-      body: JSON.stringify([ this.waaRequestKey ])
+      body: JSON.stringify([this.waaRequestKey])
     });
 
     const challengeResponseData = await challengeResponse.json();
@@ -88,7 +88,7 @@ export class BotguardService {
           'x-goog-api-key': GOOG_API_KEY,
           'x-user-agent': 'grpc-web-javacript/0.1'
         },
-        body: JSON.stringify([ this.waaRequestKey, botguardResponse ])
+        body: JSON.stringify([this.waaRequestKey, botguardResponse])
       });
 
       const integrityTokenResponseData = await integrityTokenResponse.json();
