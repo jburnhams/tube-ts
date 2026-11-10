@@ -64,7 +64,7 @@
   ],
   "dependencies": {
     "bgutils-js": "^3.2.0",
-    "googlevideo": "^4.0.4",
+    "googlevideo": "^5.0.1",
     "shaka-player": "^4.16.2",
     "youtubei.js": "^16.0.0"
   },
